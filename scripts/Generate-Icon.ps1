@@ -1,0 +1,40 @@
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Drawing
+$root = Split-Path $PSScriptRoot -Parent
+$iconDirectory = Join-Path $root 'src-tauri/icons'
+[System.IO.Directory]::CreateDirectory($iconDirectory) | Out-Null
+$bitmap = [System.Drawing.Bitmap]::new(256, 256)
+$graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+$graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+$graphics.Clear([System.Drawing.ColorTranslator]::FromHtml('#191c1e'))
+$mint = [System.Drawing.SolidBrush]::new([System.Drawing.ColorTranslator]::FromHtml('#a5ddbc'))
+$muted = [System.Drawing.SolidBrush]::new([System.Drawing.ColorTranslator]::FromHtml('#566b5e'))
+$graphics.FillRectangle($mint, 48, 58, 160, 26)
+$graphics.FillRectangle($mint, 48, 114, 114, 26)
+$graphics.FillRectangle($muted, 48, 170, 68, 26)
+$bitmap.Save((Join-Path $iconDirectory 'app.png'), [System.Drawing.Imaging.ImageFormat]::Png)
+$bitmap.Save((Join-Path $root 'public/app.png'), [System.Drawing.Imaging.ImageFormat]::Png)
+$stream = [System.IO.MemoryStream]::new()
+$bitmap.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)
+$png = $stream.ToArray()
+$file = [System.IO.File]::Create((Join-Path $iconDirectory 'icon.ico'))
+$writer = [System.IO.BinaryWriter]::new($file)
+$writer.Write([uint16]0)
+$writer.Write([uint16]1)
+$writer.Write([uint16]1)
+$writer.Write([byte]0)
+$writer.Write([byte]0)
+$writer.Write([byte]0)
+$writer.Write([byte]0)
+$writer.Write([uint16]1)
+$writer.Write([uint16]32)
+$writer.Write([uint32]$png.Length)
+$writer.Write([uint32]22)
+$writer.Write($png)
+$writer.Dispose()
+$stream.Dispose()
+$mint.Dispose()
+$muted.Dispose()
+$graphics.Dispose()
+$bitmap.Dispose()
+Write-Output 'Generated app.png and icon.ico'

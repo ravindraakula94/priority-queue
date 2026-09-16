@@ -11,7 +11,7 @@ A compact, local-first Windows focus companion. Built with Tauri 2, React, TypeS
 - Complete, archive, restore, and delete tasks, with confirmation before deletion.
 - Daily focus totals, completion counts, a seven-day chart, and per-task breakdown.
 - Always-on-top desktop window with a pin toggle and standard Windows controls.
-- A translucent, draggable 420 x 88 focus overlay with hover controls and one-click return to the full view.
+- Starts in a translucent, draggable 420 x 88 focus overlay with hover controls and one-click return to the full view.
 - Windows screen-lock auto-pause in both views; unlocking never resumes the timer automatically.
 - Automatic persistence, visible save failures, and single-instance protection.
 - Compact dark interface, locally bundled fonts, and responsive layouts.
@@ -71,13 +71,13 @@ Shortcuts apply while the app has focus, not globally across Windows.
 
 ## Compact Overlay
 
-Select the inward-arrow button beside the pin, or press Ctrl+Shift+M. On Windows, the same window becomes a small borderless, shadow-free strip, always on top, initially near the bottom-right corner of the current monitor's work area. The full view is unchanged apart from the new mode button.
+The Windows app opens automatically in the compact overlay: a small borderless, shadow-free strip, always on top, initially near the bottom-right corner of the current monitor's work area. Hover and select Expand to full view, or press Ctrl+Shift+M, to open the full queue. Select the inward-arrow button beside the pin or use the same shortcut to return to the overlay.
 
 Only the current task (or next queued task) and its time remain visible at rest. The background is translucent and becomes clearer on hover. Hover or use Tab to reveal pause/resume, complete-and-next, and expand controls. Drag the task title or timer to move the overlay. Long titles occupy at most two lines; hovering the title reveals the full text. The small strip captures pointer input so its controls remain usable; it is not click-through.
 
-Completion in compact mode chooses the first remaining task in queue order. If tracking was running, it continues on the next task; if paused, the next task stays paused. An empty queue stops tracking. Switching modes alone never starts or stops the timer. Expand restores the prior window size, position, maximized state, and pin setting. The overlay position is remembered while the app remains open. Reopening still starts in full view with focus paused.
+Completion in compact mode chooses the first remaining task in queue order. If tracking was running, it continues on the next task; if paused, the next task stays paused. An empty queue stops tracking. Switching modes alone never starts or stops the timer. Expand restores the prior window size, position, maximized state, and pin setting. The overlay position is remembered while the app remains open. Reopening starts in the compact overlay with focus paused, even if the app was closed in full view.
 
-The browser can preview the compact UI, but desktop transparency, native window sizing/dragging, always-on-top, and Windows lock detection require the Windows executable.
+The browser preview still starts in full view and can switch to the compact UI, but desktop transparency, native window sizing/dragging, always-on-top, and Windows lock detection require the Windows executable.
 
 ## Data and Timing
 
@@ -102,7 +102,7 @@ npm run test:desktop
 
 Browser tests use installed Microsoft Edge and start or reuse the preview server. They cover task lifecycle, filters, exact timing, reload persistence, keyboard shortcuts, pointer/keyboard dragging, long text at 360px, and second-tab protection. Screenshots and failure traces are written to test output directories. To test another browser, change the Playwright channel.
 
-The desktop smoke test requires a completed release build and no existing Priority Queue desktop instance. It opens the executable with a local WebView2 debugging port and routes test tasks to a temporary store. It verifies native controls, compact size/transparency, normal/maximized restoration, and lock auto-pause in both views, then closes its window and removes its temporary data. Lock/unlock notifications are sent only to the test process's hidden session-listener window; the test does not lock your workstation or alter real tasks. An actual Win+L smoke check remains useful on your Windows setup.
+The desktop smoke test requires a completed release build and no existing Priority Queue desktop instance. It opens the executable with a local WebView2 debugging port and routes test tasks to a temporary store. It verifies compact startup, native controls, compact size/transparency, normal/maximized restoration, and lock auto-pause in both views, then closes its window and removes its temporary data. Lock/unlock notifications are sent only to the test process's hidden session-listener window; the test does not lock your workstation or alter real tasks. An actual Win+L smoke check remains useful on your Windows setup.
 
 ## Structure
 

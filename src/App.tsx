@@ -93,8 +93,8 @@ export default function App({ initialState }: { initialState: QueueState }) {
   const [saveError, setSaveError] = useState(false)
   const [notice, setNotice] = useState('')
   const [pinned, setPinned] = useState(true)
-  const [compact, setCompact] = useState(false)
-  const [modeBusy, setModeBusy] = useState(false)
+  const [compact, setCompact] = useState(desktop)
+  const [modeBusy, setModeBusy] = useState(desktop)
   const changingMode = useRef(false)
   const [screenLocked, setScreenLocked] = useState(false)
   const [pausedByLock, setPausedByLock] = useState(false)
@@ -148,6 +148,7 @@ export default function App({ initialState }: { initialState: QueueState }) {
     return () => document.documentElement.classList.remove('compact-mode')
   }, [compact])
 
+  const initializeWindow = useEffectEvent(() => { if (desktop) void changeMode(true) })
   const heartbeat = useEffectEvent(() => { if (current.current.runningSince !== null) dispatch({ type: 'tick' }) })
   const sessionChanged = useEffectEvent((session: SessionState) => {
     locked.current = session.locked
@@ -187,6 +188,7 @@ export default function App({ initialState }: { initialState: QueueState }) {
   })
 
   useEffect(() => {
+    initializeWindow()
     const stopSession = watchSession(session => sessionChanged(session), error => setNotice(`Windows lock detection failed: ${String(error)}`))
     const displayTimer = window.setInterval(() => setNow(Date.now()), 1000)
     const saveTimer = window.setInterval(() => heartbeat(), 5000)

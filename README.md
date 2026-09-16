@@ -1,196 +1,143 @@
 # Priority Queue
 
-A compact, local-first Windows focus companion. Built with Tauri 2, React, TypeScript, and Vite. The original PriorityPanel folder is independent and unchanged.
+**Keep your next task in sight.** A local-first Windows focus companion with an ordered task list, a translucent floating overlay, and time tracking for the work you choose to do.
 
-## Features
+[Download for Windows](https://github.com/ravindraakula94/priority-queue/releases/latest) | [Get started](#get-started) | [Explore the features](#make-your-queue) | [Keyboard shortcuts](#keyboard-shortcuts) | [Privacy](PRIVACY.txt)
 
-- Ordered task queue with mouse, touch, keyboard, and menu-based reordering.
-- One focused task at a time; start, pause, resume, or switch explicitly.
-- Full-view completion stops its timer. Compact-view completion loads the next queued task and continues only if the previous task was running.
-- Edit titles, comma-separated tags, and due dates; search and filter the list.
-- Complete, archive, restore, and permanently delete tasks with their focus history, with confirmation before deletion.
-- Daily focus totals, completion counts, a seven-day chart, and per-task breakdown.
-- Always-on-top desktop window with a pin toggle and standard Windows controls.
-- Starts in a translucent, draggable, resizable focus overlay (420 x 88 by default), with saved placement, hover controls, and one-click return to the full view.
-- Optional Windows sign-in startup, offered on first launch and editable in Settings.
-- Windows screen-lock auto-pause in both views; unlocking never resumes the timer automatically.
-- Automatic persistence, visible save failures, and single-instance protection.
-- Windows account-bound encryption for tasks, focus history, and app preferences, with restricted native storage commands.
-- Bundled offline privacy notice and explicit cleanup of retained history from previously deleted tasks.
-- Compact dark interface, locally bundled fonts, and responsive layouts.
+![Priority Queue with a focused task, its timer, four queued tasks, tags, due dates, and daily totals](docs/images/queue.png)
 
-## Run on Windows
+*Real Windows app screenshots with fictional tasks. This guide describes the current source, including features not yet in a published installer.*
 
-Download the `Priority Queue_<version>_x64-setup.exe` installer from GitHub Releases and run it. New releases distribute the installer, not the standalone executable. Local builds produce it under `src-tauri/target/release/bundle/nsis/`.
+> **Release availability:** The published `v0.2.0` installer includes optional Windows startup and saved overlay size/position. Encrypted storage, deletion of task history, and the in-app Privacy notice shown here are newer source features. Check the release notes for the version you download. The published `v0.2.0` installer is unsigned; self-signed builds are not automatically trusted by other PCs either.
 
-The installer installs for the current user without administrator access, creates a Start menu entry, and downloads Microsoft WebView2 if needed. Node, Rust, and .NET are not required to run the app. Task data remains in your Windows profile, separate from the installation.
+## Get started
 
-On first launch, select **Start with Windows** and choose **Continue** to enable automatic launch after signing in. Leave it unchecked and continue to keep automatic startup off. **Not now** postpones the choice until the next launch. After this choice, the app opens in mini translucent mode with its timer paused. Expand the app and open **Settings** to change the startup option later.
+1. Open [Releases](https://github.com/ravindraakula94/priority-queue/releases/latest) and download the Windows x64 file ending in **`-setup.exe`**, not the source-code archive.
+2. Run the installer, then launch **Priority Queue** from the Start menu. It installs for your Windows user and downloads Microsoft WebView2 if needed. You do not need Node.js, Rust, or .NET to use the app.
+3. On first launch, choose whether to **Start with Windows**, then select **Continue**. Leave the box unchecked to keep automatic startup off; **Not now** postpones the choice.
+4. The app opens in mini mode. Hover over it and select **Expand to full view**, or press **Ctrl+Shift+M** while the app has focus.
+5. Select **New task**, add something you want to work on, and select **Start focus**. Pause when you take a break.
 
-Startup applies to your Windows account at sign-in, not before login. The app does not repeatedly register itself or override an opt-out. Windows Startup Apps or organizational policy can also block startup; the app setting reflects its registration, not a policy override.
+Windows 10/11 x64 is the supported desktop experience. Windows may warn about an unknown publisher: verify the download and release notes before deciding to run it. Do not disable Windows security to install the app.
 
-Uninstall through Windows **Settings > Apps > Installed apps**. The uninstaller removes the startup entry. Task data is retained unless you explicitly select the uninstaller's option to delete app data. Installing over a previous standalone copy uses the same task-data location; close the old copy and launch the installed app afterward.
+## Make your queue
 
-The published v0.2.0 installer is unsigned. Local builds can optionally be self-signed as described below; self-signing does not establish a publicly trusted publisher or guarantee removal of Windows SmartScreen warnings. Verify the source/build before running. Public distribution should use a trusted code-signing certificate or approved signing service.
+Write down the next few things you want to do, then put them in the order you want to tackle them. The first queued task is offered when no task is selected for focus.
 
-## Development
+- **Add or edit:** select **New task** or click an existing task title. Add comma-separated tags and an optional due date.
+- **Prioritize:** drag a row's handle, or use its three-dot menu to **Move up** or **Move down**. Keyboard reordering is supported too.
+- **Find work quickly:** search task titles and tags, filter by a tag, or choose due today, overdue, or no due date. Filters can be combined.
+- **Keep context:** each row shows its accumulated focus time. Tags and due dates help distinguish work, personal plans, and deadlines.
 
-Prerequisites: a supported Node.js release (Node 22 LTS recommended), npm, Rust stable, and the Visual Studio C++ build tools with the Windows SDK. No .NET SDK is needed.
+![Edit task dialog with a task title, work and research tags, and a due date](docs/images/task-editor.png)
 
-From this folder:
+**Try this:** use a task title that tells you what to do when you return, such as "Draft the project proposal" rather than just "Project." Keep the next action at the top so you do not have to choose again after every distraction.
 
-```powershell
-npm install
-npm run dev
-```
+## Focus on one task
 
-Browser preview: http://127.0.0.1:1421. The browser uses its own unencrypted local storage, separate from desktop data; it is a development preview, not the encrypted Windows app. The port is deliberately different from the old app's 1420. Override it with `npm run dev -- --port 1422` if necessary; desktop development requires a matching `devUrl` in the Tauri configuration.
+Select the play button beside any queued task, or **Start focus / Resume** in the focus panel. Only one task runs at a time; switching tasks records the time already spent and starts the new one.
 
-```powershell
-npm run desktop:dev
-```
+- **Pause and resume** without counting the break.
+- **Track actual work:** the focus timer shows the selected task's accumulated time, not a countdown. The **Today** strip shows time across tasks for the current day.
+- **Complete intentionally:** in full view, completing the focused task stops its timer. The next task does not start until you choose it.
+- **Return safely:** reopening restores your focused task paused, without counting time while the app was closed.
+- **Lock your PC:** Windows lock events pause tracking. Unlocking does not resume it automatically.
 
-## Build
+Switching to another application or minimizing Priority Queue does **not** pause the timer. Pause before putting an unlocked PC to sleep; sleep without a screen lock can count as focus time.
 
-```powershell
-.\scripts\Build-Windows.ps1
-```
+## Keep it visible with mini mode
 
-For a local release executable without installer packaging:
+Press **Ctrl+Shift+M**, or use the compact-overlay button beside Settings, to reduce the app to a small always-on-top strip. The current task and timer stay visible while you work in another window.
 
-```powershell
-.\scripts\Build-Windows.ps1 -NoBundle
-```
+**At rest**
 
-Native smoke tests use `npm run desktop:test-build` instead, so their data directory can be isolated in a debug build. Never distribute this debug executable.
+![Translucent compact overlay showing only the current task and timer](docs/images/overlay-idle.png)
 
-The helper adds conventional Node and Cargo locations to its process PATH and reports the installer path, size, and SHA-256 hash. It does not install or modify system software. `npm run desktop:build` is also available when the toolchains are already on PATH. Icons can be regenerated with `scripts/Generate-Icon.ps1`.
+**With controls revealed**
 
-### Self-Signed Builds
+![Compact overlay with pause, complete-and-next, and expand controls visible on hover](docs/images/overlay-controls.png)
 
-On the Windows build machine, use PowerShell 7 and the Windows SDK signing tools:
+- **Hover or use Tab** to reveal pause/resume, complete-and-next, and expand controls.
+- **Drag the title or timer** to move the overlay. Drag a window edge or corner to resize it; the minimum is 320 x 88 and the initial size is 420 x 88.
+- **Keep your placement:** size and position are remembered across launches. If your monitor layout changes, the overlay is brought back into an available screen's work area.
+- **Continue through your queue:** completing in mini mode loads the first remaining task. If the timer was running, it continues on that task; if paused, it stays paused. An empty queue stops tracking.
+- **Expand when needed:** return to the prior full-window size, position, maximized state, and pin setting. Switching views alone never starts or stops tracking.
 
-```powershell
-.\scripts\Initialize-SelfSigning.ps1
-.\scripts\Build-Windows.ps1 -SelfSign
-```
+The strip accepts mouse input so its controls work; it is not click-through. In full view, the pin button lets you switch always-on-top on or off. Mini mode is always on top.
 
-Setup creates a two-year, SHA-256/RSA-3072 code-signing certificate named `Priority Queue (Self-Signed)` in `Cert:\CurrentUser\My`. Its private key is a non-exportable Windows CNG software key, kept outside the repository. Running setup again reuses the configured certificate rather than silently changing the signing identity. Setup does not add the certificate to Trusted Root or Trusted Publishers, and does not require administrator access.
+## See where your time went
 
-The local, ignored `.signing/` directory contains a Tauri signing override and `PriorityQueue-SelfSigned.cer`, which contains only the public certificate. Do not commit signing configuration, export private keys into the repository, or share private-key containers. The public `.cer` may be shared with testers; publish its SHA-256 fingerprint through a channel they already trust before asking them to trust it. Windows trust-store changes are a separate, explicit decision, not part of installation or these scripts. Self-signing asserts this project's identity; no certificate authority has verified it.
+Open **Activity** or select the arrow beside the Today totals.
 
-`-SelfSign` makes Tauri sign the app inside the installer, the uninstaller, and the setup executable. SignTool obtains an RFC 3161 timestamp from `timestamp.digicert.com`, so signing needs network access. This timestamp request is build-time activity, not app telemetry. The build checks the signer and timestamp and reports the final installer hash. A chain ending in an untrusted root is expected on machines that have not explicitly trusted this certificate; it must not be confused with a missing signature or modified file. Tauri restores the unsigned intermediate `target/release/priority-queue.exe` after packaging, so inspect the installed or extracted app when verifying the bundled signature.
+![Activity view showing daily focus time, completed and focused task counts, a seven-day chart, and per-task time breakdown](docs/images/activity.png)
 
-With 7-Zip installed, verify all three signatures without installing or trusting anything:
+Use the date picker, previous/next arrows, or a chart bar to inspect a day. You can see:
 
-```powershell
-.\scripts\Test-SelfSigning.ps1
-```
+- Total focus time, number of tasks completed, and number of tasks focused.
+- A seven-day view of your focus time.
+- A per-task breakdown, ordered by time spent.
 
-This extracts the installer into a temporary folder, checks the certificate and timestamp on the installer, app, and uninstaller, and verifies that modifying a temporary app copy produces `HashMismatch`. Supply `-SevenZip` if 7-Zip is not in its conventional install directory. The temporary files are removed afterward.
+Daily totals follow your local calendar, including sessions that cross midnight. The selected task's all-time timer and the day's total can therefore show different values.
 
-`Build-Windows.ps1 -NoBundle -SelfSign` signs the standalone development artifact instead. Normal builds without `-SelfSign` remain unsigned. The certificate/key are tied to this Windows profile; loss of the profile or key requires a new signing identity. Renew explicitly before expiry. A trusted timestamp records when signing occurred, but does not make the self-signed identity trusted.
+**Try this:** at the end of a day, compare the breakdown with what you meant to prioritize. Reorder tomorrow's queue before closing the app.
 
-Signing changes file hashes. Never overwrite an existing published release with differently signed files under the same version. Bump the version, build, verify, and publish a new release. Setting up local self-signing does not alter the existing GitHub release.
+## Finish, archive, or delete
 
-### Publishing
+| Action | What happens |
+| --- | --- |
+| **Complete** | Moves the task to **Completed** and records its completion time. History remains. |
+| **Archive** | Moves the task out of the active queue without deleting its history. |
+| **Restore / Return to queue** | Brings the task back to the queue and clears its completed status. |
+| **Delete** | After confirmation, permanently removes the task and its entire focus history in the current source version. Other tasks are unchanged. |
 
-For each release, update the version consistently in `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, and the lockfiles. Run validation, build with `Build-Windows.ps1` without `-NoBundle` (add `-SelfSign` for local self-signing), and upload the matching `*-setup.exe` and `LICENSE` to the GitHub release. For a self-signed release, disclose its trust limitations and optionally include the public `.cer` with its independently verifiable fingerprint. Include the final installer's SHA-256 hash in the release notes. The executable under `target/release/` is an internal build artifact, not a release download.
+![Deletion confirmation explaining that the task, historical titles, and focus sessions will be removed](docs/images/delete-confirmation.png)
 
-For in-place upgrades that preserve startup registration, use the installer's update mode, for example `& '.\Priority Queue_<version>_x64-setup.exe' /UPDATE`. A full uninstall followed by reinstall removes startup registration; re-enable it in Settings afterward if needed.
+Deletion changes activity totals and has no undo after a successful save. If you see **Save failed**, use **Retry save** before closing; removal is not durable until saving succeeds. Archive instead of deleting when you want to keep the record.
 
-## Keyboard Shortcuts
+Older versions retained history for deleted tasks. In the current source version, **Privacy > Delete retained history** offers a confirmed cleanup of those sessions only. It leaves history for queued, completed, and archived tasks intact. Deletion is not secure erasure of backups or old disk contents.
 
-Shortcuts apply while the app has focus, not globally across Windows.
+## Start with Windows
+
+Open the full view and select the gear-shaped **Settings** button. Enable **Start with Windows** and save to launch automatically after signing in to your Windows account. Turn it off here whenever you prefer manual launches.
+
+![Settings dialog with the optional Start with Windows checkbox and offline Privacy notice](docs/images/settings.png)
+
+Subsequent launches open in mini mode with the timer paused. Windows Startup Apps settings or your organization's policies can also prevent automatic startup. Opening the app a second time brings the existing window forward instead of creating another queue writer.
+
+## Your data stays under your control
+
+No app account, cloud synchronization, advertising, or task-data upload service is required. Changes save automatically on your PC, with visible errors and a retry action when saving fails.
+
+In the current source version, Windows DPAPI encrypts tasks, focus history, and preferences for your Windows account. The files live under `%APPDATA%\com.priorityqueue.desktop`. Valid plaintext files from earlier Priority Queue versions migrate on first read.
+
+**Important:** protect your Windows profile and its backups. Encryption does not protect against software running as the same user, and copying these files alone to another account or reinstalled Windows is not a supported recovery method. Do not downgrade to `v0.2.0` or earlier after encrypted migration; those versions cannot read the new format and may overwrite it.
+
+The installer may download WebView2, and Microsoft's runtime has separate diagnostics, crash-reporting, and update behavior. "Local-first" does not mean the entire installation is network-silent. Read the [full privacy notice](PRIVACY.txt), also available offline through **Privacy** in the app footer and **Privacy notice** in welcome/settings.
+
+## Keyboard shortcuts
+
+These shortcuts work **while Priority Queue has focus**, not globally across Windows.
 
 | Shortcut | Action |
 | --- | --- |
-| Ctrl+K | New task |
-| Ctrl+F | Search the current task view |
-| Ctrl+Shift+Space | Start or pause focus |
-| Ctrl+Shift+Enter | Complete the focused task |
-| Ctrl+Shift+M | Switch between full view and compact overlay |
-| Escape | Close a dialog or task menu |
-| Space, arrow keys, Space | Pick up, reorder, and drop a focused drag handle |
+| **Ctrl+K** | Add a task; expands mini mode first if necessary |
+| **Ctrl+F** | Search the current full-view task list |
+| **Ctrl+Shift+Space** | Start or pause focus |
+| **Ctrl+Shift+Enter** | Complete the focused task; mini mode can load the next one |
+| **Ctrl+Shift+M** | Switch between the full queue and mini mode |
+| **Escape** | Close a dialog or task menu |
+| **Space, arrow keys, Space** | Pick up, move, and drop a focused reorder handle |
 
-## Compact Overlay
+## Updates, help, and limitations
 
-After the first-launch startup choice, the Windows app opens automatically in the compact overlay: a small borderless, shadow-free strip, always on top, initially near the bottom-right corner of the current monitor's work area. Hover and select Expand to full view, or press Ctrl+Shift+M, to open the full queue. Select the inward-arrow button beside the pin or use the same shortcut to return to the overlay.
+- **Update:** close the app and install a newer version from [Releases](https://github.com/ravindraakula94/priority-queue/releases). For an in-place upgrade of an installed copy that preserves startup registration, run the new installer with `/UPDATE`; see [upgrade details](docs/RELEASING.md#upgrade-checks).
+- **Uninstall:** use Windows **Settings > Apps > Installed apps**. Uninstall removes startup registration and retains app data unless you select the delete-app-data option.
+- **Report a problem:** open a [GitHub issue](https://github.com/ravindraakula94/priority-queue/issues). Include the app version and steps to reproduce it; redact private task text and never upload your data files.
 
-Only the current task (or next queued task) and its time remain visible at rest. The background is translucent and becomes clearer on hover. Hover or use Tab to reveal pause/resume, complete-and-next, and expand controls. Drag the task title or timer to move the overlay; drag a window edge or corner to resize it (minimum 320 x 88). Long titles occupy at most two lines; hovering the title reveals the full text. The small strip captures pointer input so its controls remain usable; it is not click-through.
+Priority Queue is a Windows desktop app, not a mobile app or cloud task manager. Tray mode, global shortcuts, sync, notifications/reminders, and import/export are not currently included. Due dates are organizational labels, not scheduled alerts.
 
-Completion in compact mode chooses the first remaining task in queue order. If tracking was running, it continues on the next task; if paused, the next task stays paused. An empty queue stops tracking. Switching modes alone never starts or stops the timer. Expand restores the prior full-window size, position, maximized state, and pin setting.
+## For contributors
 
-The overlay's size and position are saved automatically to `preferences.json` in the app-data directory after moving or resizing, before expanding, and on normal close. Reopening restores that geometry with focus paused, even if the app was closed in full view. Size is stored in logical pixels for display scaling. If the saved monitor is unavailable or its work area is smaller, the overlay is fitted into an available monitor's visible work area. Bottom-right placement is only the initial default; full-window geometry is kept separately during the session.
+Built with Tauri 2, React, and TypeScript. See the [development guide](docs/DEVELOPMENT.md) for setup, tests, and screenshot capture, and the [release guide](docs/RELEASING.md) for packaging, signing, and publishing.
 
-The browser preview still starts in full view and can switch to the compact UI, but desktop transparency, native window sizing/dragging, always-on-top, and Windows lock detection require the Windows executable.
-
-## Data and Timing
-
-Desktop data lives in `queue.json` and `preferences.json` under Tauri's application-data directory, normally `%APPDATA%\com.priorityqueue.desktop`. Despite their legacy filenames, these files now contain encrypted binary data, not readable JSON. The app has no task-data upload or cloud-sync service. WebView2 has its own Microsoft-managed diagnostics and update behavior.
-
-### Encryption and Migration
-
-Windows DPAPI encrypts and integrity-protects the queue, historical task titles and timing, startup-choice preference, and overlay geometry for the current Windows user. There is no application password, hard-coded key, or separate plaintext key file. The frontend can only read the two named datasets, save the queue, and update the two allowed preference keys. It cannot supply storage paths; the general-purpose Store plugin has been removed, and the native commands are granted only to the main local window.
-
-Valid plaintext files from earlier Priority Queue versions migrate automatically on their first read. Migration atomically replaces each file with ciphertext at the same path, preserving its data. Temporary writes contain ciphertext only; the app does not leave plaintext backup files. Unreadable, tampered, unsupported, or undecryptable files produce errors and are not replaced with empty data. The unrelated original PriorityPanel app is not imported.
-
-**Do not downgrade to v0.2.0 or earlier after migration:** those versions cannot read the encrypted format and may overwrite it. Encryption is transparent on subsequent launches of the updated app.
-
-DPAPI protects data at rest, not against software running as the same Windows user, administrators with sufficient access, or a compromised app process. Data is necessarily decrypted in memory while the app runs. The startup registry entry still contains the executable path, as Windows requires. Encryption and deletion do not securely erase old filesystem blocks, OS backups, crash dumps, or copies made before migration.
-
-**Recovery:** keep backups together with a recoverable Windows profile. Copying just these files to another account or a reinstalled Windows system is not a supported recovery method; losing the profile's DPAPI keys can make the data unrecoverable. There is no portable export/recovery-key feature yet. Protect any pre-migration backups separately. Browser preview storage is not encrypted, and encrypted native storage currently requires Windows.
-
-Changes save immediately. A running timer checkpoints every five seconds, and normal desktop close waits for a final save. Reopening restores the focused task paused and never charges time while the app was closed. A forced termination can lose time since the last checkpoint. Minimized or background windows keep tracking; switching to another app does not pause focus. Windows session-lock notifications pause at the native lock timestamp, including when the webview handles the event late. Unlocking leaves the task paused until you explicitly resume. Sleep without a session lock still counts as elapsed time, so pause before suspending an unlocked machine. Time is calculated from timestamps, not accumulated interval ticks.
-
-Daily totals use local calendar-day boundaries, including sessions crossing midnight. Deleting a task permanently removes that task and every associated focus session, historical title, and timestamp from the active saved dataset. Its focus time and completion count disappear from activity summaries; other tasks and their history remain. Completing or archiving a task still retains its history. Restoring a task clears its completed status/date. A second desktop instance focuses the first; browser tabs use an exclusive Web Lock to avoid concurrent writes.
-
-Unreadable or incompatible stored data shows an error and is not silently replaced. Save failures leave the app open and expose a retry action. Do not manually edit encrypted data files.
-
-## Privacy and Deletion
-
-Read the [Privacy notice](PRIVACY.txt), also bundled into the app and available offline from **Privacy** in the full-view footer or **Privacy notice** in welcome/settings. It covers local data, encryption limitations, retention, Microsoft WebView2 diagnostics and crash reporting, installer/runtime network activity, and Windows diagnostic controls. Opening the notice itself does not make a network request.
-
-Task deletion requires confirmation and has no undo. Removal from disk is complete only after a successful save; retry any reported save failure. This is deletion from the current app dataset, not forensic secure erasure of backups or old disk contents.
-
-Older versions retained sessions for deleted tasks. To remove these, open **Privacy**, select **Delete retained history**, and confirm. This only removes sessions whose task no longer exists; it does not erase history for queued, completed, or archived tasks. Existing retained history is not silently purged on upgrade. Uninstallation retains app data unless its delete-app-data option is selected.
-
-## Validation
-
-```powershell
-npm test
-npm run test:e2e
-npm run build
-npm run lint
-cargo check --manifest-path src-tauri/Cargo.toml
-npm run test:storage
-npm run desktop:test-build
-npm run test:desktop
-npm run test:installer
-```
-
-Browser tests use installed Microsoft Edge and start or reuse the preview server. They cover task lifecycle, permanent task/history deletion, confirmed legacy cleanup and save retry, offline privacy access, filters, exact timing, reload persistence, keyboard shortcuts, pointer/keyboard dragging, long text at 360px, and second-tab protection. Screenshots and failure traces are written to test output directories. To test another browser, change the Playwright channel.
-
-The Rust storage tests exercise DPAPI round trips, plaintext migration, tampered and future-format rejection, failed atomic replacement, concurrent preference updates, and fixed storage targets. The desktop smoke test requires `npm run desktop:test-build` and no running Priority Queue. It uses `PRIORITY_QUEUE_TEST_DATA_DIR`, recognized only in debug builds, to isolate data before startup or migration. Release builds always use the normal app-data directory and ignore that variable. The smoke test verifies ciphertext on disk, denied arbitrary targets and old Store commands, corruption handling, startup settings, overlay restart persistence, transparency, and lock auto-pause. It restores startup registry changes and checks that normal task/preference files are unchanged. It does not lock your workstation.
-
-The installer smoke test requires PowerShell 7, a built installer and matching release executable, and no existing installed/running Priority Queue (use a clean Windows test profile otherwise). It installs into a temporary directory, verifies the installed executable's hash, checks update-mode startup preservation and normal uninstall cleanup, and verifies normal task/preference files are unchanged. It does not launch the installed copy, avoiding unintended migration of real data; run the isolated desktop checks separately. It restores the original startup and installer-location registry values. Do not interrupt these tests while they are restoring state.
-
-## Structure
-
-- `src/model.ts`: typed queue transitions and focus/session accounting.
-- `src/storage.ts`: restricted native storage client and browser preview adapter.
-- `src-tauri/src/storage.rs`: fixed storage targets, Windows DPAPI encryption, atomic writes, and plaintext migration.
-- `src/startup.ts`: Windows startup registration and first-launch preference.
-- `src/windowMode.ts`: compact native window geometry and restoration.
-- `src/session.ts` and `src-tauri/src/session.rs`: native Windows lock events and timer integration.
-- `src/App.tsx`: queue, dialogs, focus controls, and activity views.
-- `PRIVACY.txt`: shared privacy notice, bundled as text for offline in-app access.
-- `src/theme.css`: responsive dark utility styling.
-- `src-tauri/`: small native host, permissions, and Windows packaging.
-- `tests/`: browser workflows; `src/model.test.ts`: state-model tests.
-
-Tray mode, global shortcuts, cloud sync, and import/export are not included in this version.
-
-## License
-
-Licensed under the [Apache License, Version 2.0](LICENSE).
+Licensed under [Apache 2.0](LICENSE).

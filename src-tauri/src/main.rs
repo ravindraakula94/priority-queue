@@ -5,6 +5,7 @@ use tauri::Manager;
 mod session;
 mod startup;
 mod storage;
+mod tray;
 
 fn main() {
     tauri::Builder::default()
@@ -24,7 +25,15 @@ fn main() {
             session::start(app.handle().clone())?;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![session::get_session_state, startup::set_startup_enabled, storage::read_app_data, storage::save_queue_data, storage::save_app_preference])
+        .invoke_handler(|invoke| {
+            #[cfg(all(debug_assertions, windows))]
+            if invoke.message.command() == "test_tray" {
+                let handler: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool = tauri::generate_handler![tray::test_tray];
+                return handler(invoke);
+            }
+            let handler: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool = tauri::generate_handler![session::get_session_state, startup::set_startup_enabled, storage::read_app_data, storage::save_queue_data, storage::save_app_preference, tray::initialize_tray];
+            handler(invoke)
+        })
         .on_window_event(|window, event| {
             if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
                 session::stop();

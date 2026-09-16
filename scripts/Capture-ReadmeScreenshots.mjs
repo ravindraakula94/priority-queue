@@ -71,7 +71,7 @@ try {
   await expect(page.getByRole('button', { name: 'Compact overlay (Ctrl+Shift+M)', exact: true })).toBeEnabled()
   await page.evaluate(() => globalThis.document.fonts.ready)
   await expect(page.locator('.task-title')).toHaveCount(4)
-  await expect(page.getByRole('button', { name: 'Unpin window', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Keep window on top', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Resume', exact: true }).click()
   await page.clock.fastForward(25000)
   await page.mouse.move(0, 0)

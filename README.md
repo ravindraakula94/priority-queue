@@ -6,9 +6,9 @@
 
 ![Priority Queue with a focused task, its timer, four queued tasks, tags, due dates, and daily totals](docs/images/queue.png)
 
-*Real Windows app screenshots with fictional tasks. This guide describes v1.0.0.*
+*Real Windows app screenshots with fictional tasks. This guide describes v1.1.0.*
 
-> **v1.0.0:** Includes encrypted local storage, permanent task/history deletion, and the offline Privacy notice. The installer is self-signed by **Ravindra Akula** and timestamped. This is not a publicly trusted certificate: Windows may still warn about an unknown publisher. Read the release notes, especially the encryption migration warning, before upgrading from v0.2.0 or earlier.
+> **v1.1.0:** Adds system tray controls for mini mode and makes full view a regular, unpinned window by default. Encrypted local storage, permanent task/history deletion, and the offline Privacy notice are retained. The installer is self-signed by **Ravindra Akula** and timestamped. This is not a publicly trusted certificate: Windows may still warn about an unknown publisher. Read the release notes, especially the encryption migration warning, before upgrading from v0.2.0 or earlier.
 
 ## Get started
 
@@ -63,7 +63,18 @@ Press **Ctrl+Shift+M**, or use the compact-overlay button beside Settings, to re
 - **Continue through your queue:** completing in mini mode loads the first remaining task. If the timer was running, it continues on that task; if paused, it stays paused. An empty queue stops tracking.
 - **Expand when needed:** return to the prior full-window size, position, maximized state, and pin setting. Switching views alone never starts or stops tracking.
 
-The strip accepts mouse input so its controls work; it is not click-through. In full view, the pin button lets you switch always-on-top on or off. Mini mode is always on top.
+The strip accepts mouse input so its controls work; it is not click-through. Full view is a regular, opaque, resizable window and is not always on top by default. Use its pin button only when you explicitly want it to stay above other apps. Mini mode is always on top; expanding restores your full-view pin choice.
+
+### System tray
+
+Mini mode keeps the overlay visible but removes its taskbar entry. A **Priority Queue** icon remains in the Windows system tray (possibly inside the hidden-icons menu). Full view restores the taskbar entry; the tray icon remains available in both views.
+
+- **Click the tray icon** to open the full view.
+- **Right-click** for **Open full view**, **Show mini overlay**, and **Quit**.
+- The overlay's **Expand** button and **Ctrl+Shift+M** still work exactly as before.
+- **Quit** saves and stops the app, rather than leaving it running invisibly. If saving fails, the app returns to full view and stays open so you can retry. The full-window Close button still exits the app normally.
+
+An open editing dialog must be finished or closed before the tray can switch to mini mode, so an unfinished task is not hidden. If tray setup fails, the app stays in full view with its taskbar entry. Tray integration and the unpinned full-view default were introduced in v1.1.0.
 
 ## See where your time went
 
@@ -134,7 +145,7 @@ These shortcuts work **while Priority Queue has focus**, not globally across Win
 - **Uninstall:** use Windows **Settings > Apps > Installed apps**. Uninstall removes startup registration and retains app data unless you select the delete-app-data option.
 - **Report a problem:** open a [GitHub issue](https://github.com/ravindraakula94/priority-queue/issues). Include the app version and steps to reproduce it; redact private task text and never upload your data files.
 
-Priority Queue is a Windows desktop app, not a mobile app or cloud task manager. Tray mode, global shortcuts, sync, notifications/reminders, and import/export are not currently included. Due dates are organizational labels, not scheduled alerts.
+Priority Queue is a Windows desktop app, not a mobile app or cloud task manager. Global shortcuts, sync, notifications/reminders, and import/export are not currently included. Due dates are organizational labels, not scheduled alerts.
 
 ## For contributors
 

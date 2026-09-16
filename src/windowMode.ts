@@ -1,4 +1,5 @@
 import { availableMonitors, currentMonitor, getCurrentWindow, LogicalSize, PhysicalPosition, type PhysicalSize } from '@tauri-apps/api/window'
+import { invoke } from '@tauri-apps/api/core'
 import { desktop, loadPreferences, savePreference } from './storage'
 
 interface FullWindow {
@@ -12,6 +13,20 @@ let fullWindow: FullWindow | undefined
 let overlayActive = false
 let modeVersion = 0
 let preferenceWrites: Promise<void> = Promise.resolve()
+let trayReady = false
+
+export async function initializeTray(onMode: (compact: boolean) => void): Promise<() => void> {
+  const stop = await getCurrentWindow().listen<boolean>('tray-mode', event => onMode(event.payload))
+  try {
+    await invoke('initialize_tray')
+    await getCurrentWindow().setSkipTaskbar(false)
+    trayReady = true
+    return stop
+  } catch (error) {
+    stop()
+    throw error
+  }
+}
 
 interface OverlayGeometry {
   x: number
@@ -65,8 +80,9 @@ export function watchOverlayPreferences(onError: (error: unknown) => void): () =
 }
 
 async function restoreFullWindow() {
-  if (!fullWindow) return
   const window = getCurrentWindow()
+  await window.setSkipTaskbar(false)
+  if (!fullWindow) return
   await window.setDecorations(true)
   await window.setShadow(true)
   await window.setResizable(true)
@@ -81,6 +97,7 @@ export async function setCompactWindow(compact: boolean): Promise<void> {
   if (!desktop) return
   const window = getCurrentWindow()
   if (!compact) {
+    if (!overlayActive) { await window.setSkipTaskbar(false); return }
     try {
       await saveOverlayPreferences()
     } finally {
@@ -96,6 +113,7 @@ export async function setCompactWindow(compact: boolean): Promise<void> {
   if (maximized) await window.unmaximize()
   fullWindow = { size: await window.innerSize(), position: await window.outerPosition(), maximized, pinned }
   try {
+    if (!trayReady) throw new Error('The system tray is not ready. Restart the app to retry.')
     await preferenceWrites.catch(() => undefined)
     const preferences = await loadPreferences()
     const saved = preferences.overlayGeometry
@@ -135,6 +153,7 @@ export async function setCompactWindow(compact: boolean): Promise<void> {
       if (geometry) await window.setPosition(new PhysicalPosition(geometry.x, geometry.y))
     }
     modeVersion++
+    await window.setSkipTaskbar(true)
     overlayActive = true
   } catch (error) {
     await restoreFullWindow().catch(() => undefined)

@@ -60,6 +60,8 @@ Only debug builds honor `PRIORITY_QUEUE_TEST_DATA_DIR`. The smoke test uses it t
 
 The test temporarily exercises startup registry settings, restores both the Run and StartupApproved values in cleanup, and compares hashes of normal task/preference files. Do not interrupt it during cleanup. Synthetic lock/unlock messages target only its hidden session-listener window and do not lock the workstation. A manual sign-in and Win+L check on a test profile is still useful.
 
+Tray regression checks use a Windows-only debug command, gated by `PRIORITY_QUEUE_TEST_DATA_DIR`, to exercise the native click/menu handlers. Its handler is excluded from production builds. Tests assert that the tray exists, the window stays visible, and Tauri's taskbar COM calls succeed in the correct mode, then exercise overlay/keyboard expansion, dialog protection, and save-failure recovery on Quit. A Windows shell check of the notification-area icon and context menu complements these handler-level tests.
+
 Installer lifecycle checks have separate prerequisites; see [release validation](RELEASING.md#validate-the-installer).
 
 ## Refresh README screenshots
@@ -97,6 +99,7 @@ Deletion removes the task and every session with its ID. Legacy orphaned session
 | [src/startup.ts](../src/startup.ts) | Startup-choice preferences and native registration calls |
 | [src-tauri/src/startup.rs](../src-tauri/src/startup.rs) | Current-user Windows startup entry, quoted executable path |
 | [src/windowMode.ts](../src/windowMode.ts) | Overlay geometry, monitor recovery, full-view restoration |
+| [src-tauri/src/tray.rs](../src-tauri/src/tray.rs) | System tray icon, full/mini actions, normal save-before-close requests |
 | [src/session.ts](../src/session.ts) / [native session listener](../src-tauri/src/session.rs) | Windows lock events and auto-pause |
 | [src/App.tsx](../src/App.tsx) / [src/theme.css](../src/theme.css) | Queue, activity, dialogs, responsive layout |
 | [PRIVACY.txt](../PRIVACY.txt) | Single privacy-notice source bundled into the app |

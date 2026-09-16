@@ -5,7 +5,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { Activity, Archive, ArrowDown, ArrowUp, ArrowUpRight, CalendarDays, Check, CheckCheck, ChevronLeft, ChevronRight, Circle, CircleCheck, Clock3, GripVertical, ListOrdered, Maximize2, Minimize2, MoreHorizontal, Pause, Pencil, Pin, PinOff, Play, Plus, RotateCcw, Search, Settings, ShieldCheck, Trash2, TriangleAlert, X } from 'lucide-react'
 import { clock, dailySummary, dayKey, duration, makeTask, parseTags, taskMilliseconds, transition, type Action, type QueueState, type QueueTask } from './model'
 import { desktop, saveQueue } from './storage'
-import { dragOverlay, saveOverlayPreferences, setCompactWindow, watchOverlayPreferences } from './windowMode'
+import { dragOverlay, initializeTray, saveOverlayPreferences, setCompactWindow, watchOverlayPreferences } from './windowMode'
 import { watchSession, type SessionState } from './session'
 import { loadStartupSettings, saveStartupSettings, type StartupSettings } from './startup'
 import privacyNotice from '../PRIVACY.txt?raw'
@@ -141,10 +141,12 @@ export default function App({ initialState, initialStartup }: { initialState: Qu
   const [saveStatus, setSaveStatus] = useState('Saved locally')
   const [saveError, setSaveError] = useState(false)
   const [notice, setNotice] = useState('')
-  const [pinned, setPinned] = useState(true)
+  const [pinned, setPinned] = useState(false)
   const [compact, setCompact] = useState(desktop && !firstRun)
   const [modeBusy, setModeBusy] = useState(desktop && !firstRun)
   const changingMode = useRef(false)
+  const pendingMode = useRef<boolean | null>(null)
+  const closing = useRef(false)
   const [screenLocked, setScreenLocked] = useState(false)
   const [pausedByLock, setPausedByLock] = useState(false)
   const locked = useRef(false)
@@ -177,7 +179,8 @@ export default function App({ initialState, initialStartup }: { initialState: Qu
   }
 
   async function changeMode(next: boolean) {
-    if (changingMode.current) return
+    if (closing.current) return
+    if (changingMode.current) { pendingMode.current = next; return }
     changingMode.current = true
     setModeBusy(true)
     setCompact(next)
@@ -189,6 +192,9 @@ export default function App({ initialState, initialStartup }: { initialState: Qu
     } finally {
       changingMode.current = false
       setModeBusy(false)
+      const pending = pendingMode.current
+      pendingMode.current = null
+      if (pending !== null) await changeMode(pending)
     }
   }
 
@@ -198,6 +204,10 @@ export default function App({ initialState, initialStartup }: { initialState: Qu
   }, [compact])
 
   const initializeWindow = useEffectEvent(() => { if (desktop && !firstRun) void changeMode(true) })
+  const trayMode = useEffectEvent((next: boolean) => {
+    if (next && dialog) { setNotice('Close the dialog before switching to mini mode.'); return }
+    void changeMode(next)
+  })
   const heartbeat = useEffectEvent(() => { if (current.current.runningSince !== null) dispatch({ type: 'tick' }) })
   const sessionChanged = useEffectEvent((session: SessionState) => {
     locked.current = session.locked
@@ -214,6 +224,21 @@ export default function App({ initialState, initialStartup }: { initialState: Qu
     current.current = next
     setState(next)
     await persist(next)
+  })
+  const closeWindow = useEffectEvent(async () => {
+    if (closing.current || changingMode.current) return
+    closing.current = true
+    pendingMode.current = null
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window')
+      await pauseAndSave()
+      await saveOverlayPreferences()
+      await getCurrentWindow().destroy()
+    } catch {
+      closing.current = false
+      await changeMode(false)
+      setNotice('Could not save. The window has been kept open. Retry the save before quitting.')
+    }
   })
   const keyboard = useEffectEvent((event: KeyboardEvent) => {
     if (dialog || !(event.ctrlKey || event.metaKey)) return
@@ -237,7 +262,6 @@ export default function App({ initialState, initialStartup }: { initialState: Qu
   })
 
   useEffect(() => {
-    initializeWindow()
     const stopOverlay = watchOverlayPreferences(error => setNotice(`Could not save overlay preferences: ${String(error)}`))
     const stopSession = watchSession(session => sessionChanged(session), error => setNotice(`Windows lock detection failed: ${String(error)}`))
     const displayTimer = window.setInterval(() => setNow(Date.now()), 1000)
@@ -248,16 +272,28 @@ export default function App({ initialState, initialStartup }: { initialState: Qu
     document.addEventListener('keydown', onKey)
     document.addEventListener('visibilitychange', onHide)
     window.addEventListener('pagehide', onPageHide)
-    let unlisten: (() => void) | undefined
+    const unlisteners: (() => void)[] = []
     let disposed = false
     if (desktop) {
       void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
+        if (disposed) return
         const stop = await getCurrentWindow().onCloseRequested(async event => {
           event.preventDefault()
-          try { await pauseAndSave(); await saveOverlayPreferences(); await getCurrentWindow().destroy() } catch { setNotice('Could not save. The window has been kept open.') }
+          await closeWindow()
         })
-        if (disposed) stop(); else unlisten = stop
-      }).catch(error => setNotice(String(error)))
+        if (disposed) { stop(); return }
+        unlisteners.push(stop)
+        const stopTray = await initializeTray(compact => trayMode(compact))
+        if (disposed) { stopTray(); return }
+        unlisteners.push(stopTray)
+        initializeWindow()
+      }).catch(error => {
+        if (!disposed) {
+          setCompact(false)
+          setModeBusy(false)
+          setNotice(`Desktop controls failed: ${String(error)}`)
+        }
+      })
     }
     return () => {
       stopOverlay()
@@ -267,7 +303,7 @@ export default function App({ initialState, initialStartup }: { initialState: Qu
       document.removeEventListener('keydown', onKey)
       document.removeEventListener('visibilitychange', onHide)
       window.removeEventListener('pagehide', onPageHide)
-      unlisten?.()
+      unlisteners.forEach(stop => stop())
     }
   }, [])
 

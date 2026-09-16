@@ -6,6 +6,8 @@ fn main() {
             "read_app_data",
             "save_queue_data",
             "save_app_preference",
+            "initialize_tray",
+            "test_tray",
         ]),
     )).expect("Could not build app permissions");
 }

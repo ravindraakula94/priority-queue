@@ -6,6 +6,7 @@
   "permissions": [
     "core:default",
     "core:window:allow-set-always-on-top",
+    "core:window:allow-set-skip-taskbar",
     "core:window:allow-set-decorations",
     "core:window:allow-set-shadow",
     "core:window:allow-set-resizable",
@@ -21,6 +22,8 @@
     "allow-set-startup-enabled",
     "allow-read-app-data",
     "allow-save-queue-data",
-    "allow-save-app-preference"
+    "allow-save-app-preference",
+    "allow-initialize-tray",
+    "allow-test-tray"
   ]
 }

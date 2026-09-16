@@ -100,12 +100,52 @@ describe('queue and focus', () => {
     assert.equal(dailySummary(state, new Date(2026, 8, 16), end).milliseconds, 120000)
   })
 
-  it('preserves session history when deleting a task and prevents stale timers', () => {
+  it('permanently deletes a running task and all of its session history', () => {
     let state = transition(setup(), { type: 'focus', id: 'first' }, 1000)
+    state = transition(state, { type: 'pause' }, 2000)
+    state = transition(state, { type: 'edit', id: 'first', title: 'Renamed private task', tags: [], due: '' }, 2500)
+    state = transition(state, { type: 'focus', id: 'first' }, 3000)
     state = transition(state, { type: 'delete', id: 'first' }, 5000)
     assert.equal(state.focusId, null)
-    assert.equal(state.sessions[0].title, 'First task')
+    assert.equal(state.runningSince, null)
+    assert.deepEqual(state.sessions, [])
     assert.deepEqual(state.tasks, [second])
+    const restored = restoreState(JSON.parse(JSON.stringify(persistedState(state))))
+    assert.deepEqual(restored.sessions, [])
+    assert.equal(JSON.stringify(restored).includes('Renamed private task'), false)
+    assert.equal(JSON.stringify(restored).includes('First task'), false)
+  })
+
+  it('deletes completed and archived history without disturbing another running task', () => {
+    for (const status of ['complete', 'archive'] as const) {
+      let state = transition(setup(), { type: 'focus', id: 'first' }, 1000)
+      state = transition(state, { type: status, id: 'first' }, 2000)
+      state = transition(state, { type: 'focus', id: 'second' }, 3000)
+      state = transition(state, { type: 'delete', id: 'first' }, 5000)
+      assert.deepEqual(state.tasks, [second])
+      assert.equal(state.focusId, 'second')
+      assert.equal(state.runningSince, 5000)
+      assert.equal(state.sessions.every(session => session.taskId === 'second'), true)
+      assert.equal(taskMilliseconds(state, 'second', 6000), 3000)
+      assert.equal(taskMilliseconds(state, 'first', 6000), 0)
+    }
+  })
+
+  it('explicitly purges legacy deleted history while retaining archived and current tasks', () => {
+    const state: QueueState = {
+      ...setup(),
+      tasks: [{ ...first, status: 'archived' }, second],
+      sessions: [
+        { taskId: 'deleted', title: 'Removed private task', start: 0, end: 1000 },
+        { taskId: 'first', title: 'First task', start: 1000, end: 2000 },
+        { taskId: 'second', title: 'Second task', start: 2000, end: 3000 },
+      ],
+    }
+    const cleaned = transition(state, { type: 'purge-deleted-history' }, 4000)
+    assert.deepEqual(cleaned.tasks, state.tasks)
+    assert.deepEqual(cleaned.sessions.map(session => session.taskId), ['first', 'second'])
+    assert.equal(JSON.stringify(cleaned).includes('Removed private task'), false)
+    assert.deepEqual(transition(cleaned, { type: 'purge-deleted-history' }, 5000), cleaned)
   })
 
   it('does not start completed tasks or accept corrupt saved state', () => {

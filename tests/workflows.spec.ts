@@ -114,6 +114,98 @@ test('a second tab cannot overwrite the first tab', async ({ page, context }) =>
   await other.close()
 })
 
+test('permanent deletion removes every stored task title and session after reload', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-09-16T09:00:00') })
+  await page.goto('/')
+  await addTask(page, 'Private old title')
+  await addTask(page, 'Keep this task')
+  await page.getByRole('button', { name: 'Focus Private old title', exact: true }).click()
+  await page.clock.fastForward(65000)
+  await page.getByRole('button', { name: 'Pause', exact: true }).click()
+  await page.getByRole('button', { name: 'Private old title', exact: true }).click()
+  await page.getByLabel('Task', { exact: true }).fill('Private new title')
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click()
+  await page.getByRole('button', { name: 'Focus Keep this task', exact: true }).click()
+  await page.clock.fastForward(65000)
+  await page.getByRole('button', { name: 'Pause', exact: true }).click()
+  await page.getByRole('button', { name: 'Actions for Private new title', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Delete task', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Delete task and history?' })).toBeVisible()
+  await expect(page.getByText('This permanently removes the task and all its focus sessions', { exact: false })).toBeVisible()
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  expect(await page.evaluate(() => localStorage.getItem('priority-queue.v1'))).toContain('Private old title')
+  await page.getByRole('button', { name: 'Actions for Private new title', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Delete task', exact: true }).click()
+  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+  await expect(page.locator('.app-footer').getByRole('status')).toHaveText('Saved locally')
+  const saved = await page.evaluate(() => localStorage.getItem('priority-queue.v1'))
+  expect(saved).not.toContain('Private old title')
+  expect(saved).not.toContain('Private new title')
+  expect(saved).toContain('Keep this task')
+  await page.reload()
+  await expect(page.locator('.task-title')).toHaveText(['Keep this task'])
+  await page.getByRole('button', { name: 'Activity', exact: true }).click()
+  await expect(page.locator('.breakdown-list li')).toHaveCount(1)
+  await expect(page.locator('.breakdown-list li')).toContainText('Keep this task')
+})
+
+test('privacy notice is offline and legacy cleanup is confirmed, retryable and persistent', async ({ page, context }) => {
+  const state = {
+    version: 1,
+    tasks: [{ id: 'kept', title: 'Existing archived task', tags: [], due: '', status: 'archived', createdAt: 0, completedAt: null }],
+    sessions: [
+      { taskId: 'deleted', title: 'Legacy private title', start: 0, end: 1000 },
+      { taskId: 'kept', title: 'Existing archived task', start: 1000, end: 2000 },
+    ],
+    focusId: null,
+    runningSince: null,
+  }
+  await page.addInitScript(state => {
+    if (!localStorage.getItem('priority-queue.v1')) localStorage.setItem('priority-queue.v1', JSON.stringify(state))
+  }, state)
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: 'Privacy', exact: true })).toBeVisible()
+  await context.setOffline(true)
+  await page.getByRole('button', { name: 'Privacy', exact: true }).click()
+  const notice = page.getByRole('dialog', { name: 'Privacy notice', exact: true })
+  await expect(notice).toBeVisible()
+  await expect(notice.locator('.privacy-copy')).toContainText('Microsoft WebView2 diagnostics')
+  await expect(notice.locator('.privacy-copy')).toContainText('required diagnostic data')
+  await expect(notice.locator('.privacy-copy')).toContainText('unencrypted browser local storage')
+  await expect(notice.getByText('1 retained focus session from previously deleted tasks')).toBeVisible()
+  await page.screenshot({ path: 'test-results/privacy-desktop.png' })
+  await page.setViewportSize({ width: 360, height: 640 })
+  expect(await notice.evaluate(dialog => dialog.scrollWidth <= dialog.clientWidth)).toBe(true)
+  await page.screenshot({ path: 'test-results/privacy-mobile.png' })
+  await notice.getByRole('button', { name: 'Delete retained history', exact: true }).click()
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  expect(await page.evaluate(() => localStorage.getItem('priority-queue.v1'))).toContain('Legacy private title')
+  await notice.getByRole('button', { name: 'Delete retained history', exact: true }).click()
+  await page.evaluate(() => {
+    const originalSetItem = Storage.prototype.setItem
+    let failNext = true
+    Storage.prototype.setItem = function (key, value) {
+      if (key === 'priority-queue.v1' && failNext) { failNext = false; throw new Error('Simulated save failure') }
+      return originalSetItem.call(this, key, value)
+    }
+  })
+  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+  await expect(notice.getByRole('alert')).toContainText('Save failed')
+  expect(await page.evaluate(() => localStorage.getItem('priority-queue.v1'))).toContain('Legacy private title')
+  await notice.getByRole('button', { name: 'Retry save', exact: true }).click()
+  await expect(notice.getByRole('alert')).toHaveCount(0)
+  await expect(notice.getByRole('button', { name: 'Delete retained history', exact: true })).toBeDisabled()
+  await notice.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(page.locator('.app-footer').getByRole('status')).toHaveText('Saved locally')
+  await context.setOffline(false)
+  await page.reload()
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('priority-queue.v1')!))
+  expect(saved.sessions).toEqual([state.sessions[1]])
+  expect(saved.tasks).toEqual(state.tasks)
+  await page.getByRole('button', { name: 'Privacy', exact: true }).click()
+  await expect(notice.getByRole('button', { name: 'Delete retained history', exact: true })).toBeDisabled()
+})
+
 test('keyboard and pointer dragging reorder the queue', async ({ page }) => {
   await page.goto('/')
   await addTask(page, 'First task')

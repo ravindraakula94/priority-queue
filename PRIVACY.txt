@@ -1,0 +1,30 @@
+PRIORITY QUEUE PRIVACY NOTICE
+Last updated: 16 September 2026
+
+Local data and purpose
+Priority Queue stores the task titles, tags, due dates, statuses, creation/completion times, and focus-session titles and timestamps needed for your queue and activity summaries. It also stores your startup choice and floating-window size and position. Task text may contain personal or sensitive information. Windows lock/unlock events are used to pause focus timing; the app does not record global keystrokes, screenshots, microphone audio, or camera images.
+
+Storage and protection
+In the updated Windows app, tasks, history, and preferences are stored in queue.json and preferences.json in the app-data directory, normally %APPDATA%\com.priorityqueue.desktop. Despite the filenames, these files contain Windows DPAPI-encrypted data bound to your Windows account/profile. Valid plaintext data from earlier releases is migrated on first read. No app password or account is required. Software running as the same Windows user, an administrator with sufficient access, or a compromised app process may still access data. Data is decrypted in memory while the app runs. Browser preview data is stored separately in unencrypted browser local storage.
+
+Retention and deletion
+Data is kept locally until you delete it. Deleting a task in this version also deletes all its focus sessions and historical titles from the active app dataset once the save succeeds. Its time and completion totals are removed from activity summaries. Completing or archiving a task does not delete its history. Earlier versions retained history for deleted tasks; the Privacy dialog provides a separate confirmed action to remove those retained sessions without deleting history for existing tasks. Failed saves are reported and must be retried before removal is durable. There is no undo after successful deletion.
+
+Deletion is not secure erasure of old filesystem blocks, memory, OS backups, crash dumps, browser backups, or copies you made yourself. Uninstalling normally retains app data unless you select the uninstaller's delete-app-data option. Browser data can be cleared through the browser's site-data settings. Losing the Windows profile's DPAPI keys can make encrypted data unrecoverable; copying the files alone to another account is not a supported recovery method. Older plaintext-only app versions must not be used after migration.
+
+App network behavior
+Priority Queue has no task-data upload, advertising, analytics, cloud-sync service, or LLM integration. The app's task and preference storage commands communicate locally with its native host. This does not mean the entire installation is network-silent: the installer can download Microsoft WebView2 when needed, and Windows/WebView2 update or diagnostic services can contact Microsoft independently of the app's frontend connection restrictions.
+
+Microsoft WebView2 diagnostics
+WebView2 is a Microsoft component with its own data practices. Microsoft documents required diagnostic data for reliability and security, optional diagnostics governed by Windows settings, and crash reporting that can send minidumps to Microsoft. Optional diagnostics can include browser events and API/SDK usage. Crash dumps may contain process-memory information. Priority Queue does not operate these services or receive their diagnostic reports. This notice does not promise that task content can never appear in a runtime crash dump.
+
+Microsoft also documents SmartScreen reputation checking in WebView2. The bundled Tauri/Wry version disables its WebView SmartScreen feature by default; this is separate from Windows checking the downloaded installer and is not a switch that disables all Microsoft diagnostics. Runtime versions and organizational policies can affect behavior.
+
+Your controls and third-party information
+Optional diagnostics can be managed under Windows Settings > Privacy & security > Diagnostics & feedback. Required diagnostic data may still be collected, and your organization may control these settings. Start with Windows is optional and changes this app's entry in the current user's startup registry; that entry necessarily contains the executable path. Disabling startup does not delete your tasks. Encryption and deleting local app data do not control Microsoft-held diagnostics.
+
+Microsoft's current policies and runtime documentation:
+https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/data-privacy
+https://privacy.microsoft.com/privacystatement
+
+Privacy questions or reports about Priority Queue can be raised at https://github.com/ravindraakula94/priority-queue/issues. GitHub is a separate service, and public issues are visible to others; do not attach private task data, unredacted screenshots, or data files.

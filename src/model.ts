@@ -34,6 +34,7 @@ export type Action =
   | { type: 'complete-next'; id: string }
   | { type: 'complete' | 'archive' | 'restore' | 'delete'; id: string }
   | { type: 'move'; id: string; overId: string }
+  | { type: 'purge-deleted-history' }
   | { type: 'tick' }
 
 export function emptyState(): QueueState {
@@ -76,6 +77,10 @@ export function transition(current: QueueState, action: Action, now = Date.now()
   const state = checkpoint(current, now)
   switch (action.type) {
     case 'tick': return state
+    case 'purge-deleted-history': {
+      const taskIds = new Set(state.tasks.map(task => task.id))
+      return { ...state, sessions: state.sessions.filter(session => taskIds.has(session.taskId)) }
+    }
     case 'add': return { ...state, tasks: [...state.tasks, action.task] }
     case 'edit': return { ...state, tasks: state.tasks.map(task => task.id === action.id ? { ...task, title: action.title.trim(), tags: action.tags, due: action.due } : task) }
     case 'focus':
@@ -99,7 +104,8 @@ export function transition(current: QueueState, action: Action, now = Date.now()
           ...task, status: status as TaskStatus,
           completedAt: action.type === 'complete' ? now : action.type === 'restore' ? null : task.completedAt,
         })
-      return { ...state, tasks, ...(state.focusId === action.id ? { focusId: null, runningSince: null } : {}) }
+      const sessions = action.type === 'delete' ? state.sessions.filter(session => session.taskId !== action.id) : state.sessions
+      return { ...state, tasks, sessions, ...(state.focusId === action.id ? { focusId: null, runningSince: null } : {}) }
     }
     case 'move': {
       const tasks = [...state.tasks]

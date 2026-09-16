@@ -8,7 +8,7 @@ A compact, local-first Windows focus companion. Built with Tauri 2, React, TypeS
 - One focused task at a time; start, pause, resume, or switch explicitly.
 - Full-view completion stops its timer. Compact-view completion loads the next queued task and continues only if the previous task was running.
 - Edit titles, comma-separated tags, and due dates; search and filter the list.
-- Complete, archive, restore, and delete tasks, with confirmation before deletion.
+- Complete, archive, restore, and permanently delete tasks with their focus history, with confirmation before deletion.
 - Daily focus totals, completion counts, a seven-day chart, and per-task breakdown.
 - Always-on-top desktop window with a pin toggle and standard Windows controls.
 - Starts in a translucent, draggable, resizable focus overlay (420 x 88 by default), with saved placement, hover controls, and one-click return to the full view.
@@ -16,6 +16,7 @@ A compact, local-first Windows focus companion. Built with Tauri 2, React, TypeS
 - Windows screen-lock auto-pause in both views; unlocking never resumes the timer automatically.
 - Automatic persistence, visible save failures, and single-instance protection.
 - Windows account-bound encryption for tasks, focus history, and app preferences, with restricted native storage commands.
+- Bundled offline privacy notice and explicit cleanup of retained history from previously deleted tasks.
 - Compact dark interface, locally bundled fonts, and responsive layouts.
 
 ## Run on Windows
@@ -109,15 +110,23 @@ Valid plaintext files from earlier Priority Queue versions migrate automatically
 
 **Do not downgrade to v0.2.0 or earlier after migration:** those versions cannot read the encrypted format and may overwrite it. Encryption is transparent on subsequent launches of the updated app.
 
-DPAPI protects data at rest, not against software running as the same Windows user, administrators with sufficient access, or a compromised app process. Data is necessarily decrypted in memory while the app runs. The startup registry entry still contains the executable path, as Windows requires. Encryption does not change task-history retention or securely erase old filesystem blocks, OS backups, crash dumps, or copies made before migration.
+DPAPI protects data at rest, not against software running as the same Windows user, administrators with sufficient access, or a compromised app process. Data is necessarily decrypted in memory while the app runs. The startup registry entry still contains the executable path, as Windows requires. Encryption and deletion do not securely erase old filesystem blocks, OS backups, crash dumps, or copies made before migration.
 
 **Recovery:** keep backups together with a recoverable Windows profile. Copying just these files to another account or a reinstalled Windows system is not a supported recovery method; losing the profile's DPAPI keys can make the data unrecoverable. There is no portable export/recovery-key feature yet. Protect any pre-migration backups separately. Browser preview storage is not encrypted, and encrypted native storage currently requires Windows.
 
 Changes save immediately. A running timer checkpoints every five seconds, and normal desktop close waits for a final save. Reopening restores the focused task paused and never charges time while the app was closed. A forced termination can lose time since the last checkpoint. Minimized or background windows keep tracking; switching to another app does not pause focus. Windows session-lock notifications pause at the native lock timestamp, including when the webview handles the event late. Unlocking leaves the task paused until you explicitly resume. Sleep without a session lock still counts as elapsed time, so pause before suspending an unlocked machine. Time is calculated from timestamps, not accumulated interval ticks.
 
-Daily totals use local calendar-day boundaries, including sessions crossing midnight. Deleting a task preserves its focus-session history, but removes its completion count. Restoring a task clears its completed status/date. A second desktop instance focuses the first; browser tabs use an exclusive Web Lock to avoid concurrent writes.
+Daily totals use local calendar-day boundaries, including sessions crossing midnight. Deleting a task permanently removes that task and every associated focus session, historical title, and timestamp from the active saved dataset. Its focus time and completion count disappear from activity summaries; other tasks and their history remain. Completing or archiving a task still retains its history. Restoring a task clears its completed status/date. A second desktop instance focuses the first; browser tabs use an exclusive Web Lock to avoid concurrent writes.
 
 Unreadable or incompatible stored data shows an error and is not silently replaced. Save failures leave the app open and expose a retry action. Do not manually edit encrypted data files.
+
+## Privacy and Deletion
+
+Read the [Privacy notice](PRIVACY.txt), also bundled into the app and available offline from **Privacy** in the full-view footer or **Privacy notice** in welcome/settings. It covers local data, encryption limitations, retention, Microsoft WebView2 diagnostics and crash reporting, installer/runtime network activity, and Windows diagnostic controls. Opening the notice itself does not make a network request.
+
+Task deletion requires confirmation and has no undo. Removal from disk is complete only after a successful save; retry any reported save failure. This is deletion from the current app dataset, not forensic secure erasure of backups or old disk contents.
+
+Older versions retained sessions for deleted tasks. To remove these, open **Privacy**, select **Delete retained history**, and confirm. This only removes sessions whose task no longer exists; it does not erase history for queued, completed, or archived tasks. Existing retained history is not silently purged on upgrade. Uninstallation retains app data unless its delete-app-data option is selected.
 
 ## Validation
 
@@ -133,7 +142,7 @@ npm run test:desktop
 npm run test:installer
 ```
 
-Browser tests use installed Microsoft Edge and start or reuse the preview server. They cover task lifecycle, filters, exact timing, reload persistence, keyboard shortcuts, pointer/keyboard dragging, long text at 360px, and second-tab protection. Screenshots and failure traces are written to test output directories. To test another browser, change the Playwright channel.
+Browser tests use installed Microsoft Edge and start or reuse the preview server. They cover task lifecycle, permanent task/history deletion, confirmed legacy cleanup and save retry, offline privacy access, filters, exact timing, reload persistence, keyboard shortcuts, pointer/keyboard dragging, long text at 360px, and second-tab protection. Screenshots and failure traces are written to test output directories. To test another browser, change the Playwright channel.
 
 The Rust storage tests exercise DPAPI round trips, plaintext migration, tampered and future-format rejection, failed atomic replacement, concurrent preference updates, and fixed storage targets. The desktop smoke test requires `npm run desktop:test-build` and no running Priority Queue. It uses `PRIORITY_QUEUE_TEST_DATA_DIR`, recognized only in debug builds, to isolate data before startup or migration. Release builds always use the normal app-data directory and ignore that variable. The smoke test verifies ciphertext on disk, denied arbitrary targets and old Store commands, corruption handling, startup settings, overlay restart persistence, transparency, and lock auto-pause. It restores startup registry changes and checks that normal task/preference files are unchanged. It does not lock your workstation.
 
@@ -148,6 +157,7 @@ The installer smoke test requires PowerShell 7, a built installer and matching r
 - `src/windowMode.ts`: compact native window geometry and restoration.
 - `src/session.ts` and `src-tauri/src/session.rs`: native Windows lock events and timer integration.
 - `src/App.tsx`: queue, dialogs, focus controls, and activity views.
+- `PRIVACY.txt`: shared privacy notice, bundled as text for offline in-app access.
 - `src/theme.css`: responsive dark utility styling.
 - `src-tauri/`: small native host, permissions, and Windows packaging.
 - `tests/`: browser workflows; `src/model.test.ts`: state-model tests.

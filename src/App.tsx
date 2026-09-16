@@ -2,15 +2,16 @@ import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type Form
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Activity, Archive, ArrowDown, ArrowUp, ArrowUpRight, CalendarDays, Check, CheckCheck, ChevronLeft, ChevronRight, Circle, CircleCheck, Clock3, GripVertical, ListOrdered, Maximize2, Minimize2, MoreHorizontal, Pause, Pencil, Pin, PinOff, Play, Plus, RotateCcw, Search, Settings, Trash2, TriangleAlert, X } from 'lucide-react'
+import { Activity, Archive, ArrowDown, ArrowUp, ArrowUpRight, CalendarDays, Check, CheckCheck, ChevronLeft, ChevronRight, Circle, CircleCheck, Clock3, GripVertical, ListOrdered, Maximize2, Minimize2, MoreHorizontal, Pause, Pencil, Pin, PinOff, Play, Plus, RotateCcw, Search, Settings, ShieldCheck, Trash2, TriangleAlert, X } from 'lucide-react'
 import { clock, dailySummary, dayKey, duration, makeTask, parseTags, taskMilliseconds, transition, type Action, type QueueState, type QueueTask } from './model'
 import { desktop, saveQueue } from './storage'
 import { dragOverlay, saveOverlayPreferences, setCompactWindow, watchOverlayPreferences } from './windowMode'
 import { watchSession, type SessionState } from './session'
 import { loadStartupSettings, saveStartupSettings, type StartupSettings } from './startup'
+import privacyNotice from '../PRIVACY.txt?raw'
 
 type View = 'queued' | 'completed' | 'archived' | 'activity'
-type DialogState = { kind: 'edit'; task?: QueueTask } | { kind: 'delete'; task: QueueTask } | { kind: 'startup'; firstRun: boolean } | null
+type DialogState = { kind: 'edit'; task?: QueueTask } | { kind: 'delete'; task: QueueTask } | { kind: 'startup'; firstRun: boolean } | { kind: 'privacy' | 'purge-history' } | null
 
 function IconButton({ label, children, onClick, disabled = false, active = false }: { label: string; children: ReactNode; onClick: () => void; disabled?: boolean; active?: boolean }) {
   return <button type="button" className={`icon-button${active ? ' is-active' : ''}`} title={label} aria-label={label} onClick={onClick} disabled={disabled}>{children}</button>
@@ -23,6 +24,7 @@ function Modal({ label, children, close }: { label: string; children: ReactNode;
 }
 
 function StartupDialog({ firstRun, close }: { firstRun: boolean; close: () => void }) {
+  const [privacy, setPrivacy] = useState(false)
   const [enabled, setEnabled] = useState(false)
   const [busy, setBusy] = useState(true)
   const [ready, setReady] = useState(false)
@@ -54,10 +56,12 @@ function StartupDialog({ firstRun, close }: { firstRun: boolean; close: () => vo
     }
   }
   const title = firstRun ? 'Welcome to Priority Queue' : 'Settings'
+  if (privacy) return <Modal label="Privacy notice" close={() => setPrivacy(false)}><header className="dialog-header"><h2>Privacy notice</h2><IconButton label="Back to settings" onClick={() => setPrivacy(false)}><X /></IconButton></header><div className="privacy-copy">{privacyNotice}</div><footer className="dialog-footer"><button className="secondary-button" onClick={() => setPrivacy(false)}>Back</button></footer></Modal>
   return <Modal label={title} close={() => { if (!busy) close() }}>
     <header className="dialog-header"><h2>{title}</h2><IconButton label="Close" disabled={busy} onClick={close}><X /></IconButton></header>
     <form onSubmit={event => { void save(event) }}>
       <label className="startup-option"><input type="checkbox" checked={enabled} disabled={busy || !ready} onChange={event => setEnabled(event.target.checked)} />Start with Windows</label>
+      <button type="button" className="text-button" disabled={busy} onClick={() => setPrivacy(true)}><ShieldCheck size={15} />Privacy notice</button>
       {error && <p className="settings-error" role="alert">{error}</p>}
       {!ready && !busy && <button type="button" className="text-button" onClick={() => { setBusy(true); setAttempt(attempt + 1) }}><RotateCcw size={15} />Retry</button>}
       <footer className="dialog-footer"><button type="button" className="secondary-button" disabled={busy} onClick={close}>{firstRun ? 'Not now' : 'Cancel'}</button><button className="primary-button" type="submit" disabled={busy || !ready}><Check size={16} />{busy ? 'Please wait...' : firstRun ? 'Continue' : 'Save'}</button></footer>
@@ -268,6 +272,8 @@ export default function App({ initialState, initialStartup }: { initialState: Qu
   }, [])
 
   const queued = state.tasks.filter(task => task.status === 'queued')
+  const taskIds = new Set(state.tasks.map(task => task.id))
+  const retainedSessions = state.sessions.filter(session => !taskIds.has(session.taskId)).length
   const focus = state.tasks.find(task => task.id === state.focusId)
   const candidate = focus ?? queued[0]
   const running = state.runningSince !== null
@@ -355,9 +361,11 @@ export default function App({ initialState, initialStartup }: { initialState: Qu
       </section>}
     </main>
     {notice && <div className="notice" role="alert"><span>{notice}</span><IconButton label="Dismiss message" onClick={() => setNotice('')}><X /></IconButton></div>}
-    <footer className={`app-footer${saveError ? ' save-error' : ''}`}><span role="status"><span className="storage-dot" />{saveStatus}</span>{saveError ? <button className="text-button" onClick={() => { void persist(current.current).catch(() => undefined) }}>Retry save</button> : <span>PRIORITY QUEUE <span className="version">/ 01</span></span>}</footer>
+    <footer className={`app-footer${saveError ? ' save-error' : ''}`}><span role="status"><span className="storage-dot" />{saveStatus}</span><button className="text-button" onClick={() => setDialog({ kind: 'privacy' })}><ShieldCheck size={13} />Privacy</button>{saveError ? <button className="text-button" onClick={() => { void persist(current.current).catch(() => undefined) }}>Retry save</button> : <span>PRIORITY QUEUE <span className="version">/ 01</span></span>}</footer>
+    {dialog?.kind === 'privacy' && <Modal label="Privacy notice" close={() => setDialog(null)}><header className="dialog-header"><h2>Privacy notice</h2><IconButton label="Close" onClick={() => setDialog(null)}><X /></IconButton></header><div className="privacy-copy">{privacyNotice}</div><div className="privacy-retention"><p>{retainedSessions} retained focus {retainedSessions === 1 ? 'session' : 'sessions'} from previously deleted tasks</p><button className="secondary-button" disabled={!retainedSessions} onClick={() => setDialog({ kind: 'purge-history' })}><Trash2 size={15} />Delete retained history</button>{saveError && <><p className="settings-error" role="alert">{saveStatus}</p><button className="text-button" onClick={() => { void persist(current.current).catch(() => undefined) }}>Retry save</button></>}</div></Modal>}
+    {dialog?.kind === 'purge-history' && <Modal label="Delete retained history" close={() => setDialog({ kind: 'privacy' })}><header className="dialog-header"><h2>Delete retained history?</h2><IconButton label="Close" onClick={() => setDialog({ kind: 'privacy' })}><X /></IconButton></header><p className="delete-title">Permanently remove {retainedSessions} focus {retainedSessions === 1 ? 'session' : 'sessions'} belonging to previously deleted tasks, including their stored titles and times. Existing tasks and their history will remain. Activity totals will change. This cannot be undone.</p><footer className="dialog-footer"><button className="secondary-button" autoFocus onClick={() => setDialog({ kind: 'privacy' })}>Cancel</button><button className="danger-button" disabled={!retainedSessions} onClick={() => { dispatch({ type: 'purge-deleted-history' }); setDialog({ kind: 'privacy' }) }}><Trash2 size={15} />Delete</button></footer></Modal>}
     {dialog?.kind === 'startup' && <StartupDialog firstRun={dialog.firstRun} close={() => { setDialog(null); if (dialog.firstRun) void changeMode(true) }} />}
     {dialog?.kind === 'edit' && <TaskEditor task={dialog.task} close={() => setDialog(null)} submit={(title, tags, due) => { dispatch(dialog.task ? { type: 'edit', id: dialog.task.id, title, tags, due } : { type: 'add', task: makeTask(title, tags, due) }); setDialog(null) }} />}
-    {dialog?.kind === 'delete' && <Modal label="Delete task" close={() => setDialog(null)}><header className="dialog-header"><h2>Delete task?</h2><IconButton label="Close" onClick={() => setDialog(null)}><X /></IconButton></header><p className="delete-title">{dialog.task.title}</p><footer className="dialog-footer"><button className="secondary-button" autoFocus onClick={() => setDialog(null)}>Cancel</button><button className="danger-button" onClick={() => { dispatch({ type: 'delete', id: dialog.task.id }); setDialog(null) }}><Trash2 size={15} />Delete</button></footer></Modal>}
+    {dialog?.kind === 'delete' && <Modal label="Delete task" close={() => setDialog(null)}><header className="dialog-header"><h2>Delete task and history?</h2><IconButton label="Close" onClick={() => setDialog(null)}><X /></IconButton></header><p className="delete-title">{dialog.task.title}</p><p className="delete-warning">This permanently removes the task and all its focus sessions, including historical titles and times. Activity totals will change. This cannot be undone.</p><footer className="dialog-footer"><button className="secondary-button" autoFocus onClick={() => setDialog(null)}>Cancel</button><button className="danger-button" onClick={() => { dispatch({ type: 'delete', id: dialog.task.id }); setDialog(null) }}><Trash2 size={15} />Delete</button></footer></Modal>}
   </div>
 }

@@ -157,6 +157,8 @@ h1 { font-size: 21px; line-height: 1.15; font-weight: 650; }
 .app-footer { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 51px; border-top: 1px solid var(--line); padding: 14px 32px; font-family: var(--mono); font-size: 9px; color: var(--faint); }
 .app-footer > span:first-child { display: flex; align-items: center; gap: 7px; overflow-wrap: anywhere; min-width: 0; }
 .app-footer > span:last-child { white-space: nowrap; }
+.app-footer { flex-wrap: wrap; }
+.app-footer .text-button { font-size: inherit; padding-block: 0; }
 .storage-dot { width: 4px; height: 4px; border-radius: 50%; background: #87a591; flex-shrink: 0; }
 .version { color: #7e8983; }
 .save-error { color: var(--red); }
@@ -177,6 +179,10 @@ dialog::backdrop { background: #070909b8; backdrop-filter: blur(3px); }
 .form-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 15px; margin-top: 20px; }
 .dialog-footer { display: flex; justify-content: flex-end; gap: 9px; padding-top: 26px; }
 .delete-title { font-size: 14px; line-height: 1.6; color: var(--muted); overflow-wrap: anywhere; }
+.delete-warning { font-size: 12px; line-height: 1.6; color: var(--amber); margin-top: 16px; }
+.privacy-copy { white-space: pre-line; overflow-wrap: anywhere; font-size: 12px; line-height: 1.7; color: var(--muted); }
+.privacy-retention { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 18px; font-size: 12px; line-height: 1.6; }
+.privacy-retention p { margin-bottom: 12px; }
 .danger-button { color: #291818; background: var(--red); }
 .danger-button:hover { background: #ffb3b3; }
 .startup-error { max-width: 600px; margin: 10vh auto; padding: 28px; }

@@ -11,16 +11,23 @@ A compact, local-first Windows focus companion. Built with Tauri 2, React, TypeS
 - Complete, archive, restore, and delete tasks, with confirmation before deletion.
 - Daily focus totals, completion counts, a seven-day chart, and per-task breakdown.
 - Always-on-top desktop window with a pin toggle and standard Windows controls.
-- Starts in a translucent, draggable 420 x 88 focus overlay with hover controls and one-click return to the full view.
+- Starts in a translucent, draggable, resizable focus overlay (420 x 88 by default), with saved placement, hover controls, and one-click return to the full view.
+- Optional Windows sign-in startup, offered on first launch and editable in Settings.
 - Windows screen-lock auto-pause in both views; unlocking never resumes the timer automatically.
 - Automatic persistence, visible save failures, and single-instance protection.
 - Compact dark interface, locally bundled fonts, and responsive layouts.
 
 ## Run on Windows
 
-After a release build, double-click `src-tauri/target/release/priority-queue.exe`. The executable contains the frontend; Node, Rust, and .NET are not required to run it. Its data lives in your Windows profile, not next to the executable.
+Download the `Priority Queue_<version>_x64-setup.exe` installer from GitHub Releases and run it. New releases distribute the installer, not the standalone executable. Local builds produce it under `src-tauri/target/release/bundle/nsis/`.
 
-Alternatively, run the installer in `src-tauri/target/release/bundle/nsis/`. It installs for the current user and downloads Microsoft WebView2 if needed. Windows 10/11 machines usually already have WebView2. A standalone EXE requires WebView2 to be installed separately if absent.
+The installer installs for the current user without administrator access, creates a Start menu entry, and downloads Microsoft WebView2 if needed. Node, Rust, and .NET are not required to run the app. Task data remains in your Windows profile, separate from the installation.
+
+On first launch, select **Start with Windows** and choose **Continue** to enable automatic launch after signing in. Leave it unchecked and continue to keep automatic startup off. **Not now** postpones the choice until the next launch. After this choice, the app opens in mini translucent mode with its timer paused. Expand the app and open **Settings** to change the startup option later.
+
+Startup applies to your Windows account at sign-in, not before login. The app does not repeatedly register itself or override an opt-out. Windows Startup Apps or organizational policy can also block startup; the app setting reflects its registration, not a policy override.
+
+Uninstall through Windows **Settings > Apps > Installed apps**. The uninstaller removes the startup entry. Task data is retained unless you explicitly select the uninstaller's option to delete app data. Installing over a previous standalone copy uses the same task-data location; close the old copy and launch the installed app afterward.
 
 The release is unsigned, so Windows SmartScreen may warn about an unrecognized publisher. Verify the source/build before running; production distribution should use a code-signing certificate.
 
@@ -47,13 +54,19 @@ npm run desktop:dev
 .\scripts\Build-Windows.ps1
 ```
 
-Build just the standalone executable, without downloading installer tooling:
+For local development or native smoke tests only, skip installer packaging:
 
 ```powershell
 .\scripts\Build-Windows.ps1 -NoBundle
 ```
 
-The helper adds conventional Node and Cargo locations to its process PATH and reports output sizes. It does not install or modify system software. `npm run desktop:build` is also available when the toolchains are already on PATH. Icons can be regenerated with `scripts/Generate-Icon.ps1`.
+The helper adds conventional Node and Cargo locations to its process PATH and reports the installer path, size, and SHA-256 hash. It does not install or modify system software. `npm run desktop:build` is also available when the toolchains are already on PATH. Icons can be regenerated with `scripts/Generate-Icon.ps1`.
+
+### Publishing
+
+For each release, update the version consistently in `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, and the lockfiles. Run validation, build with `Build-Windows.ps1` without `-NoBundle`, and upload only the matching `*-setup.exe` and `LICENSE` to the GitHub release. Include the installer's SHA-256 hash in the release notes. The executable under `target/release/` is an internal build artifact, not a release download.
+
+For in-place upgrades that preserve startup registration, use the installer's update mode, for example `& '.\Priority Queue_<version>_x64-setup.exe' /UPDATE`. A full uninstall followed by reinstall removes startup registration; re-enable it in Settings afterward if needed.
 
 ## Keyboard Shortcuts
 
@@ -71,11 +84,13 @@ Shortcuts apply while the app has focus, not globally across Windows.
 
 ## Compact Overlay
 
-The Windows app opens automatically in the compact overlay: a small borderless, shadow-free strip, always on top, initially near the bottom-right corner of the current monitor's work area. Hover and select Expand to full view, or press Ctrl+Shift+M, to open the full queue. Select the inward-arrow button beside the pin or use the same shortcut to return to the overlay.
+After the first-launch startup choice, the Windows app opens automatically in the compact overlay: a small borderless, shadow-free strip, always on top, initially near the bottom-right corner of the current monitor's work area. Hover and select Expand to full view, or press Ctrl+Shift+M, to open the full queue. Select the inward-arrow button beside the pin or use the same shortcut to return to the overlay.
 
-Only the current task (or next queued task) and its time remain visible at rest. The background is translucent and becomes clearer on hover. Hover or use Tab to reveal pause/resume, complete-and-next, and expand controls. Drag the task title or timer to move the overlay. Long titles occupy at most two lines; hovering the title reveals the full text. The small strip captures pointer input so its controls remain usable; it is not click-through.
+Only the current task (or next queued task) and its time remain visible at rest. The background is translucent and becomes clearer on hover. Hover or use Tab to reveal pause/resume, complete-and-next, and expand controls. Drag the task title or timer to move the overlay; drag a window edge or corner to resize it (minimum 320 x 88). Long titles occupy at most two lines; hovering the title reveals the full text. The small strip captures pointer input so its controls remain usable; it is not click-through.
 
-Completion in compact mode chooses the first remaining task in queue order. If tracking was running, it continues on the next task; if paused, the next task stays paused. An empty queue stops tracking. Switching modes alone never starts or stops the timer. Expand restores the prior window size, position, maximized state, and pin setting. The overlay position is remembered while the app remains open. Reopening starts in the compact overlay with focus paused, even if the app was closed in full view.
+Completion in compact mode chooses the first remaining task in queue order. If tracking was running, it continues on the next task; if paused, the next task stays paused. An empty queue stops tracking. Switching modes alone never starts or stops the timer. Expand restores the prior full-window size, position, maximized state, and pin setting.
+
+The overlay's size and position are saved automatically to `preferences.json` in the app-data directory after moving or resizing, before expanding, and on normal close. Reopening restores that geometry with focus paused, even if the app was closed in full view. Size is stored in logical pixels for display scaling. If the saved monitor is unavailable or its work area is smaller, the overlay is fitted into an available monitor's visible work area. Bottom-right placement is only the initial default; full-window geometry is kept separately during the session.
 
 The browser preview still starts in full view and can switch to the compact UI, but desktop transparency, native window sizing/dragging, always-on-top, and Windows lock detection require the Windows executable.
 
@@ -98,16 +113,20 @@ npm run build
 npm run lint
 cargo check --manifest-path src-tauri/Cargo.toml
 npm run test:desktop
+npm run test:installer
 ```
 
 Browser tests use installed Microsoft Edge and start or reuse the preview server. They cover task lifecycle, filters, exact timing, reload persistence, keyboard shortcuts, pointer/keyboard dragging, long text at 360px, and second-tab protection. Screenshots and failure traces are written to test output directories. To test another browser, change the Playwright channel.
 
-The desktop smoke test requires a completed release build and no existing Priority Queue desktop instance. It opens the executable with a local WebView2 debugging port and routes test tasks to a temporary store. It verifies compact startup, native controls, compact size/transparency, normal/maximized restoration, and lock auto-pause in both views, then closes its window and removes its temporary data. Lock/unlock notifications are sent only to the test process's hidden session-listener window; the test does not lock your workstation or alter real tasks. An actual Win+L smoke check remains useful on your Windows setup.
+The desktop smoke test requires a completed release build and no existing Priority Queue desktop instance. It opens the executable with a local WebView2 debugging port and redirects storage IPC to temporary task and preference files before test actions. It verifies first-launch opt-in/opt-out, startup persistence, settings failures/retry, saved overlay geometry across view changes and app restart, off-screen/invalid geometry recovery, transparency, full-window restoration, and lock auto-pause. Its temporary startup changes are restored in a `finally` block. Lock/unlock notifications target only the test process; the test does not lock your workstation. An actual sign-out/sign-in and Win+L check remains useful on your Windows setup.
+
+The installer smoke test requires PowerShell 7, a built installer, and no existing installed/running Priority Queue (use a clean Windows test profile otherwise). It installs into a temporary directory, runs the desktop checks against the installed copy, checks update-mode startup preservation and normal uninstall cleanup, and verifies existing task and preference files are unchanged. It restores the original startup and installer-location registry values. Do not interrupt these tests while they are restoring state.
 
 ## Structure
 
 - `src/model.ts`: typed queue transitions and focus/session accounting.
 - `src/storage.ts`: desktop Store plugin and browser storage adapter.
+- `src/startup.ts`: Windows startup registration and first-launch preference.
 - `src/windowMode.ts`: compact native window geometry and restoration.
 - `src/session.ts` and `src-tauri/src/session.rs`: native Windows lock events and timer integration.
 - `src/App.tsx`: queue, dialogs, focus controls, and activity views.

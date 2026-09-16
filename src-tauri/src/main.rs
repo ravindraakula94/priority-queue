@@ -3,6 +3,7 @@
 use tauri::Manager;
 
 mod session;
+mod startup;
 
 fn main() {
     tauri::Builder::default()
@@ -14,11 +15,12 @@ fn main() {
             }
         }))
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_autostart::Builder::new().app_name("Priority Queue").build())
         .setup(|app| {
             session::start(app.handle().clone())?;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![session::get_session_state])
+        .invoke_handler(tauri::generate_handler![session::get_session_state, startup::set_startup_enabled])
         .on_window_event(|window, event| {
             if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
                 session::stop();

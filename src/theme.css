@@ -171,6 +171,9 @@ dialog::backdrop { background: #070909b8; backdrop-filter: blur(3px); }
 .dialog-header h2 { font-size: 20px; font-weight: 550; }
 .dialog-body label { display: block; font-size: 11px; color: var(--muted); margin: 0 0 8px; }
 .dialog-body textarea, .dialog-body input { width: 100%; font-size: 13px; }
+.dialog-body .startup-option { display: flex; align-items: center; gap: 12px; font-size: 14px; color: inherit; }
+.startup-option input[type=checkbox] { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--mint); }
+.settings-error { color: var(--red); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; margin-top: 16px; }
 .form-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 15px; margin-top: 20px; }
 .dialog-footer { display: flex; justify-content: flex-end; gap: 9px; padding-top: 26px; }
 .delete-title { font-size: 14px; line-height: 1.6; color: var(--muted); overflow-wrap: anywhere; }
@@ -183,6 +186,7 @@ dialog::backdrop { background: #070909b8; backdrop-filter: blur(3px); }
 :root.compact-mode { background: transparent; color-scheme: only light; }
 .compact-mode body { min-width: 0; background: transparent; overflow: hidden; }
 .focus-overlay { width: min(420px, 100%); height: 88px; padding: 10px 14px 6px; border: 1px solid #ffffff12; border-radius: 6px; background: rgb(20 25 23 / 38%); color: #f0f5f1; text-shadow: 0 1px 3px #000b; display: flex; flex-direction: column; justify-content: space-between; user-select: none; cursor: grab; transition: background-color 180ms, border-color 180ms; }
+.focus-overlay.desktop-overlay { width: 100%; height: 100dvh; min-height: 88px; }
 .focus-overlay:hover, .focus-overlay:has(:focus-visible) { background: rgb(20 25 23 / 90%); border-color: #ffffff24; }
 .overlay-title { font-size: 13px; line-height: 18px; font-weight: 500; overflow-wrap: anywhere; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .overlay-bottom { height: 26px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -221,7 +225,7 @@ dialog::backdrop { background: #070909b8; backdrop-filter: blur(3px); }
   .app-footer { padding-inline: 20px; }
 }
 @media (max-width: 420px) {
-  .app-header { padding-inline: 16px; gap: 8px; }
+  .app-header { padding-inline: 16px; gap: 8px; flex-wrap: wrap; }
   h1 { font-size: 19px; }
   .brand { gap: 9px; }
   .brand-mark { width: 32px; height: 32px; }

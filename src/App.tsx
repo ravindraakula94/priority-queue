@@ -2,14 +2,15 @@ import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type Form
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Activity, Archive, ArrowDown, ArrowUp, ArrowUpRight, CalendarDays, Check, CheckCheck, ChevronLeft, ChevronRight, Circle, CircleCheck, Clock3, GripVertical, ListOrdered, Maximize2, Minimize2, MoreHorizontal, Pause, Pencil, Pin, PinOff, Play, Plus, RotateCcw, Search, Trash2, TriangleAlert, X } from 'lucide-react'
+import { Activity, Archive, ArrowDown, ArrowUp, ArrowUpRight, CalendarDays, Check, CheckCheck, ChevronLeft, ChevronRight, Circle, CircleCheck, Clock3, GripVertical, ListOrdered, Maximize2, Minimize2, MoreHorizontal, Pause, Pencil, Pin, PinOff, Play, Plus, RotateCcw, Search, Settings, Trash2, TriangleAlert, X } from 'lucide-react'
 import { clock, dailySummary, dayKey, duration, makeTask, parseTags, taskMilliseconds, transition, type Action, type QueueState, type QueueTask } from './model'
 import { desktop, saveQueue } from './storage'
-import { dragOverlay, setCompactWindow } from './windowMode'
+import { dragOverlay, saveOverlayPreferences, setCompactWindow, watchOverlayPreferences } from './windowMode'
 import { watchSession, type SessionState } from './session'
+import { loadStartupSettings, saveStartupSettings, type StartupSettings } from './startup'
 
 type View = 'queued' | 'completed' | 'archived' | 'activity'
-type DialogState = { kind: 'edit'; task?: QueueTask } | { kind: 'delete'; task: QueueTask } | null
+type DialogState = { kind: 'edit'; task?: QueueTask } | { kind: 'delete'; task: QueueTask } | { kind: 'startup'; firstRun: boolean } | null
 
 function IconButton({ label, children, onClick, disabled = false, active = false }: { label: string; children: ReactNode; onClick: () => void; disabled?: boolean; active?: boolean }) {
   return <button type="button" className={`icon-button${active ? ' is-active' : ''}`} title={label} aria-label={label} onClick={onClick} disabled={disabled}>{children}</button>
@@ -18,7 +19,50 @@ function IconButton({ label, children, onClick, disabled = false, active = false
 function Modal({ label, children, close }: { label: string; children: ReactNode; close: () => void }) {
   const ref = useRef<HTMLDialogElement>(null)
   useEffect(() => { const dialog = ref.current!; dialog.showModal(); return () => dialog.close() }, [])
-  return <dialog ref={ref} aria-label={label} onCancel={close} onClick={event => { if (event.target === event.currentTarget) close() }}><div className="dialog-body">{children}</div></dialog>
+  return <dialog ref={ref} aria-label={label} onCancel={event => { event.preventDefault(); close() }} onClick={event => { if (event.target === event.currentTarget) close() }}><div className="dialog-body">{children}</div></dialog>
+}
+
+function StartupDialog({ firstRun, close }: { firstRun: boolean; close: () => void }) {
+  const [enabled, setEnabled] = useState(false)
+  const [busy, setBusy] = useState(true)
+  const [ready, setReady] = useState(false)
+  const [error, setError] = useState('')
+  const [attempt, setAttempt] = useState(0)
+  useEffect(() => {
+    let disposed = false
+    void loadStartupSettings().then(settings => {
+      if (disposed) return
+      setEnabled(settings.enabled)
+      setError(settings.error ?? '')
+      setReady(!settings.error)
+      setBusy(false)
+    })
+    return () => { disposed = true }
+  }, [attempt])
+  async function save(event: FormEvent) {
+    event.preventDefault()
+    if (busy || !ready) return
+    setBusy(true)
+    setError('')
+    try {
+      await saveStartupSettings(enabled)
+      close()
+    } catch (error) {
+      setError(`Could not save startup settings: ${String(error)}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const title = firstRun ? 'Welcome to Priority Queue' : 'Settings'
+  return <Modal label={title} close={() => { if (!busy) close() }}>
+    <header className="dialog-header"><h2>{title}</h2><IconButton label="Close" disabled={busy} onClick={close}><X /></IconButton></header>
+    <form onSubmit={event => { void save(event) }}>
+      <label className="startup-option"><input type="checkbox" checked={enabled} disabled={busy || !ready} onChange={event => setEnabled(event.target.checked)} />Start with Windows</label>
+      {error && <p className="settings-error" role="alert">{error}</p>}
+      {!ready && !busy && <button type="button" className="text-button" onClick={() => { setBusy(true); setAttempt(attempt + 1) }}><RotateCcw size={15} />Retry</button>}
+      <footer className="dialog-footer"><button type="button" className="secondary-button" disabled={busy} onClick={close}>{firstRun ? 'Not now' : 'Cancel'}</button><button className="primary-button" type="submit" disabled={busy || !ready}><Check size={16} />{busy ? 'Please wait...' : firstRun ? 'Continue' : 'Save'}</button></footer>
+    </form>
+  </Modal>
 }
 
 function TaskEditor({ task, close, submit }: { task?: QueueTask; close: () => void; submit: (title: string, tags: string[], due: string) => void }) {
@@ -80,7 +124,8 @@ function TaskRow({ task, index, state, now, dispatch, edit, remove, previous, ne
   </li>
 }
 
-export default function App({ initialState }: { initialState: QueueState }) {
+export default function App({ initialState, initialStartup }: { initialState: QueueState; initialStartup: StartupSettings | null }) {
+  const firstRun = desktop && initialStartup?.choiceMade === false
   const [state, setState] = useState(initialState)
   const current = useRef(initialState)
   const [now, setNow] = useState(Date.now())
@@ -88,13 +133,13 @@ export default function App({ initialState }: { initialState: QueueState }) {
   const [search, setSearch] = useState('')
   const [tag, setTag] = useState('')
   const [due, setDue] = useState('')
-  const [dialog, setDialog] = useState<DialogState>(null)
+  const [dialog, setDialog] = useState<DialogState>(firstRun ? { kind: 'startup', firstRun: true } : null)
   const [saveStatus, setSaveStatus] = useState('Saved locally')
   const [saveError, setSaveError] = useState(false)
   const [notice, setNotice] = useState('')
   const [pinned, setPinned] = useState(true)
-  const [compact, setCompact] = useState(desktop)
-  const [modeBusy, setModeBusy] = useState(desktop)
+  const [compact, setCompact] = useState(desktop && !firstRun)
+  const [modeBusy, setModeBusy] = useState(desktop && !firstRun)
   const changingMode = useRef(false)
   const [screenLocked, setScreenLocked] = useState(false)
   const [pausedByLock, setPausedByLock] = useState(false)
@@ -148,7 +193,7 @@ export default function App({ initialState }: { initialState: QueueState }) {
     return () => document.documentElement.classList.remove('compact-mode')
   }, [compact])
 
-  const initializeWindow = useEffectEvent(() => { if (desktop) void changeMode(true) })
+  const initializeWindow = useEffectEvent(() => { if (desktop && !firstRun) void changeMode(true) })
   const heartbeat = useEffectEvent(() => { if (current.current.runningSince !== null) dispatch({ type: 'tick' }) })
   const sessionChanged = useEffectEvent((session: SessionState) => {
     locked.current = session.locked
@@ -189,6 +234,7 @@ export default function App({ initialState }: { initialState: QueueState }) {
 
   useEffect(() => {
     initializeWindow()
+    const stopOverlay = watchOverlayPreferences(error => setNotice(`Could not save overlay preferences: ${String(error)}`))
     const stopSession = watchSession(session => sessionChanged(session), error => setNotice(`Windows lock detection failed: ${String(error)}`))
     const displayTimer = window.setInterval(() => setNow(Date.now()), 1000)
     const saveTimer = window.setInterval(() => heartbeat(), 5000)
@@ -204,12 +250,13 @@ export default function App({ initialState }: { initialState: QueueState }) {
       void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
         const stop = await getCurrentWindow().onCloseRequested(async event => {
           event.preventDefault()
-          try { await pauseAndSave(); await getCurrentWindow().destroy() } catch { setNotice('Could not save. The window has been kept open.') }
+          try { await pauseAndSave(); await saveOverlayPreferences(); await getCurrentWindow().destroy() } catch { setNotice('Could not save. The window has been kept open.') }
         })
         if (disposed) stop(); else unlisten = stop
       }).catch(error => setNotice(String(error)))
     }
     return () => {
+      stopOverlay()
       stopSession()
       disposed = true
       window.clearInterval(displayTimer); window.clearInterval(saveTimer)
@@ -257,7 +304,7 @@ export default function App({ initialState }: { initialState: QueueState }) {
     } catch (error) { setNotice(`Window control failed: ${String(error)}`) }
   }
 
-  if (compact) return <main className={`focus-overlay${running ? ' running' : ''}`} aria-label="Compact focus" onPointerDown={event => {
+  if (compact) return <main className={`focus-overlay${desktop ? ' desktop-overlay' : ''}${running ? ' running' : ''}`} aria-label="Compact focus" onPointerDown={event => {
     if (event.button === 0 && !(event.target as Element).closest('button')) {
       void dragOverlay().catch(error => setNotice(`Could not move overlay: ${String(error)}`))
     }
@@ -277,7 +324,7 @@ export default function App({ initialState }: { initialState: QueueState }) {
   return <div className="app-shell">
     <header className="app-header">
       <div className="brand"><div className="brand-mark"><img src="/app.png" width="37" height="37" alt="" /></div><div><h1>Priority Queue</h1><span className="brand-subtitle">PERSONAL WORKSPACE</span></div></div>
-      <div className="header-actions"><IconButton label="Compact overlay (Ctrl+Shift+M)" disabled={modeBusy} onClick={() => { void changeMode(true) }}><Minimize2 /></IconButton>{desktop && <IconButton label={pinned ? 'Unpin window' : 'Keep window on top'} active={pinned} onClick={() => { void togglePin() }}>{pinned ? <Pin /> : <PinOff />}</IconButton>}<button className="primary-button" aria-label="New task" title="New task (Ctrl+K)" onClick={() => setDialog({ kind: 'edit' })}><Plus size={17} /><span>New task</span></button></div>
+      <div className="header-actions"><IconButton label="Compact overlay (Ctrl+Shift+M)" disabled={modeBusy} onClick={() => { void changeMode(true) }}><Minimize2 /></IconButton>{desktop && <><IconButton label="Settings" onClick={() => setDialog({ kind: 'startup', firstRun: false })}><Settings /></IconButton><IconButton label={pinned ? 'Unpin window' : 'Keep window on top'} active={pinned} onClick={() => { void togglePin() }}>{pinned ? <Pin /> : <PinOff />}</IconButton></>}<button className="primary-button" aria-label="New task" title="New task (Ctrl+K)" onClick={() => setDialog({ kind: 'edit' })}><Plus size={17} /><span>New task</span></button></div>
     </header>
 
     <main>
@@ -309,6 +356,7 @@ export default function App({ initialState }: { initialState: QueueState }) {
     </main>
     {notice && <div className="notice" role="alert"><span>{notice}</span><IconButton label="Dismiss message" onClick={() => setNotice('')}><X /></IconButton></div>}
     <footer className={`app-footer${saveError ? ' save-error' : ''}`}><span role="status"><span className="storage-dot" />{saveStatus}</span>{saveError ? <button className="text-button" onClick={() => { void persist(current.current).catch(() => undefined) }}>Retry save</button> : <span>PRIORITY QUEUE <span className="version">/ 01</span></span>}</footer>
+    {dialog?.kind === 'startup' && <StartupDialog firstRun={dialog.firstRun} close={() => { setDialog(null); if (dialog.firstRun) void changeMode(true) }} />}
     {dialog?.kind === 'edit' && <TaskEditor task={dialog.task} close={() => setDialog(null)} submit={(title, tags, due) => { dispatch(dialog.task ? { type: 'edit', id: dialog.task.id, title, tags, due } : { type: 'add', task: makeTask(title, tags, due) }); setDialog(null) }} />}
     {dialog?.kind === 'delete' && <Modal label="Delete task" close={() => setDialog(null)}><header className="dialog-header"><h2>Delete task?</h2><IconButton label="Close" onClick={() => setDialog(null)}><X /></IconButton></header><p className="delete-title">{dialog.task.title}</p><footer className="dialog-footer"><button className="secondary-button" autoFocus onClick={() => setDialog(null)}>Cancel</button><button className="danger-button" onClick={() => { dispatch({ type: 'delete', id: dialog.task.id }); setDialog(null) }}><Trash2 size={15} />Delete</button></footer></Modal>}
   </div>

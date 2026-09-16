@@ -4,14 +4,16 @@ import '@fontsource-variable/dm-sans'
 import '@fontsource/dm-mono/400.css'
 import './theme.css'
 import App from './App.tsx'
-import { loadQueue } from './storage'
+import { desktop, loadQueue } from './storage'
+import { loadStartupSettings } from './startup'
 
 const root = createRoot(document.getElementById('root')!)
 
 async function start() {
   try {
     const initialState = await loadQueue()
-    root.render(<StrictMode><App initialState={initialState} /></StrictMode>)
+    const initialStartup = desktop ? await loadStartupSettings() : null
+    root.render(<StrictMode><App initialState={initialState} initialStartup={initialStartup} /></StrictMode>)
   } catch (error) {
     root.render(<main className="startup-error"><h1>Priority Queue</h1><h2>Could not open your queue.</h2><p role="alert">{String(error)}</p><button onClick={() => location.reload()}>Try again</button></main>)
   }

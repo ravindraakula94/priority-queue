@@ -9,11 +9,13 @@
     "build": "tsc -b && vite build",
     "test": "node --import tsx --test src/model.test.ts",
     "test:e2e": "playwright test",
+    "test:storage": "cargo test --manifest-path src-tauri/Cargo.toml storage::tests -- --test-threads=1",
     "test:desktop": "node scripts/Smoke-Desktop.mjs",
     "test:installer": "pwsh -NoProfile -File scripts/Smoke-Installer.ps1",
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
+    "desktop:test-build": "tauri build --debug --no-bundle",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -25,7 +27,6 @@
     "@fontsource/dm-mono": "^5.3.0",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-autostart": "^2.5.1",
-    "@tauri-apps/plugin-store": "^2.4.4",
     "lucide-react": "^1.42.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

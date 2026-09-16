@@ -15,6 +15,7 @@ A compact, local-first Windows focus companion. Built with Tauri 2, React, TypeS
 - Optional Windows sign-in startup, offered on first launch and editable in Settings.
 - Windows screen-lock auto-pause in both views; unlocking never resumes the timer automatically.
 - Automatic persistence, visible save failures, and single-instance protection.
+- Windows account-bound encryption for tasks, focus history, and app preferences, with restricted native storage commands.
 - Compact dark interface, locally bundled fonts, and responsive layouts.
 
 ## Run on Windows
@@ -42,7 +43,7 @@ npm install
 npm run dev
 ```
 
-Browser preview: http://127.0.0.1:1421. The browser uses its own local storage, separate from desktop data. The port is deliberately different from the old app's 1420. Override it with `npm run dev -- --port 1422` if necessary; desktop development requires a matching `devUrl` in the Tauri configuration.
+Browser preview: http://127.0.0.1:1421. The browser uses its own unencrypted local storage, separate from desktop data; it is a development preview, not the encrypted Windows app. The port is deliberately different from the old app's 1420. Override it with `npm run dev -- --port 1422` if necessary; desktop development requires a matching `devUrl` in the Tauri configuration.
 
 ```powershell
 npm run desktop:dev
@@ -54,11 +55,13 @@ npm run desktop:dev
 .\scripts\Build-Windows.ps1
 ```
 
-For local development or native smoke tests only, skip installer packaging:
+For a local release executable without installer packaging:
 
 ```powershell
 .\scripts\Build-Windows.ps1 -NoBundle
 ```
+
+Native smoke tests use `npm run desktop:test-build` instead, so their data directory can be isolated in a debug build. Never distribute this debug executable.
 
 The helper adds conventional Node and Cargo locations to its process PATH and reports the installer path, size, and SHA-256 hash. It does not install or modify system software. `npm run desktop:build` is also available when the toolchains are already on PATH. Icons can be regenerated with `scripts/Generate-Icon.ps1`.
 
@@ -96,13 +99,25 @@ The browser preview still starts in full view and can switch to the compact UI, 
 
 ## Data and Timing
 
-Desktop data is stored in `queue.json` under Tauri's application-data directory, normally `%APPDATA%\com.priorityqueue.desktop\queue.json`. The file contains a versioned queue and focus sessions. No remote API, account, telemetry, or synchronization is configured. The old app's data is not automatically imported.
+Desktop data lives in `queue.json` and `preferences.json` under Tauri's application-data directory, normally `%APPDATA%\com.priorityqueue.desktop`. Despite their legacy filenames, these files now contain encrypted binary data, not readable JSON. The app has no task-data upload or cloud-sync service. WebView2 has its own Microsoft-managed diagnostics and update behavior.
+
+### Encryption and Migration
+
+Windows DPAPI encrypts and integrity-protects the queue, historical task titles and timing, startup-choice preference, and overlay geometry for the current Windows user. There is no application password, hard-coded key, or separate plaintext key file. The frontend can only read the two named datasets, save the queue, and update the two allowed preference keys. It cannot supply storage paths; the general-purpose Store plugin has been removed, and the native commands are granted only to the main local window.
+
+Valid plaintext files from earlier Priority Queue versions migrate automatically on their first read. Migration atomically replaces each file with ciphertext at the same path, preserving its data. Temporary writes contain ciphertext only; the app does not leave plaintext backup files. Unreadable, tampered, unsupported, or undecryptable files produce errors and are not replaced with empty data. The unrelated original PriorityPanel app is not imported.
+
+**Do not downgrade to v0.2.0 or earlier after migration:** those versions cannot read the encrypted format and may overwrite it. Encryption is transparent on subsequent launches of the updated app.
+
+DPAPI protects data at rest, not against software running as the same Windows user, administrators with sufficient access, or a compromised app process. Data is necessarily decrypted in memory while the app runs. The startup registry entry still contains the executable path, as Windows requires. Encryption does not change task-history retention or securely erase old filesystem blocks, OS backups, crash dumps, or copies made before migration.
+
+**Recovery:** keep backups together with a recoverable Windows profile. Copying just these files to another account or a reinstalled Windows system is not a supported recovery method; losing the profile's DPAPI keys can make the data unrecoverable. There is no portable export/recovery-key feature yet. Protect any pre-migration backups separately. Browser preview storage is not encrypted, and encrypted native storage currently requires Windows.
 
 Changes save immediately. A running timer checkpoints every five seconds, and normal desktop close waits for a final save. Reopening restores the focused task paused and never charges time while the app was closed. A forced termination can lose time since the last checkpoint. Minimized or background windows keep tracking; switching to another app does not pause focus. Windows session-lock notifications pause at the native lock timestamp, including when the webview handles the event late. Unlocking leaves the task paused until you explicitly resume. Sleep without a session lock still counts as elapsed time, so pause before suspending an unlocked machine. Time is calculated from timestamps, not accumulated interval ticks.
 
 Daily totals use local calendar-day boundaries, including sessions crossing midnight. Deleting a task preserves its focus-session history, but removes its completion count. Restoring a task clears its completed status/date. A second desktop instance focuses the first; browser tabs use an exclusive Web Lock to avoid concurrent writes.
 
-Unreadable or incompatible stored data shows an error and is not silently replaced. Save failures leave the app open and expose a retry action. Back up the data file before making manual changes.
+Unreadable or incompatible stored data shows an error and is not silently replaced. Save failures leave the app open and expose a retry action. Do not manually edit encrypted data files.
 
 ## Validation
 
@@ -112,20 +127,23 @@ npm run test:e2e
 npm run build
 npm run lint
 cargo check --manifest-path src-tauri/Cargo.toml
+npm run test:storage
+npm run desktop:test-build
 npm run test:desktop
 npm run test:installer
 ```
 
 Browser tests use installed Microsoft Edge and start or reuse the preview server. They cover task lifecycle, filters, exact timing, reload persistence, keyboard shortcuts, pointer/keyboard dragging, long text at 360px, and second-tab protection. Screenshots and failure traces are written to test output directories. To test another browser, change the Playwright channel.
 
-The desktop smoke test requires a completed release build and no existing Priority Queue desktop instance. It opens the executable with a local WebView2 debugging port and redirects storage IPC to temporary task and preference files before test actions. It verifies first-launch opt-in/opt-out, startup persistence, settings failures/retry, saved overlay geometry across view changes and app restart, off-screen/invalid geometry recovery, transparency, full-window restoration, and lock auto-pause. Its temporary startup changes are restored in a `finally` block. Lock/unlock notifications target only the test process; the test does not lock your workstation. An actual sign-out/sign-in and Win+L check remains useful on your Windows setup.
+The Rust storage tests exercise DPAPI round trips, plaintext migration, tampered and future-format rejection, failed atomic replacement, concurrent preference updates, and fixed storage targets. The desktop smoke test requires `npm run desktop:test-build` and no running Priority Queue. It uses `PRIORITY_QUEUE_TEST_DATA_DIR`, recognized only in debug builds, to isolate data before startup or migration. Release builds always use the normal app-data directory and ignore that variable. The smoke test verifies ciphertext on disk, denied arbitrary targets and old Store commands, corruption handling, startup settings, overlay restart persistence, transparency, and lock auto-pause. It restores startup registry changes and checks that normal task/preference files are unchanged. It does not lock your workstation.
 
-The installer smoke test requires PowerShell 7, a built installer, and no existing installed/running Priority Queue (use a clean Windows test profile otherwise). It installs into a temporary directory, runs the desktop checks against the installed copy, checks update-mode startup preservation and normal uninstall cleanup, and verifies existing task and preference files are unchanged. It restores the original startup and installer-location registry values. Do not interrupt these tests while they are restoring state.
+The installer smoke test requires PowerShell 7, a built installer and matching release executable, and no existing installed/running Priority Queue (use a clean Windows test profile otherwise). It installs into a temporary directory, verifies the installed executable's hash, checks update-mode startup preservation and normal uninstall cleanup, and verifies normal task/preference files are unchanged. It does not launch the installed copy, avoiding unintended migration of real data; run the isolated desktop checks separately. It restores the original startup and installer-location registry values. Do not interrupt these tests while they are restoring state.
 
 ## Structure
 
 - `src/model.ts`: typed queue transitions and focus/session accounting.
-- `src/storage.ts`: desktop Store plugin and browser storage adapter.
+- `src/storage.ts`: restricted native storage client and browser preview adapter.
+- `src-tauri/src/storage.rs`: fixed storage targets, Windows DPAPI encryption, atomic writes, and plaintext migration.
 - `src/startup.ts`: Windows startup registration and first-launch preference.
 - `src/windowMode.ts`: compact native window geometry and restoration.
 - `src/session.ts` and `src-tauri/src/session.rs`: native Windows lock events and timer integration.

@@ -1,6 +1,5 @@
 import { availableMonitors, currentMonitor, getCurrentWindow, LogicalSize, PhysicalPosition, type PhysicalSize } from '@tauri-apps/api/window'
-import { load } from '@tauri-apps/plugin-store'
-import { desktop } from './storage'
+import { desktop, loadPreferences, savePreference } from './storage'
 
 interface FullWindow {
   size: PhysicalSize
@@ -39,9 +38,7 @@ export async function saveOverlayPreferences(): Promise<void> {
   const geometry = { x: position.x, y: position.y, width: size.width, height: size.height }
   if (!validGeometry(geometry)) return preferenceWrites
   preferenceWrites = preferenceWrites.catch(() => undefined).then(async () => {
-    const preferences = await load('preferences.json', { autoSave: false, defaults: {} })
-    await preferences.set('overlayGeometry', geometry)
-    await preferences.save()
+    await savePreference('overlayGeometry', geometry)
   })
   return preferenceWrites
 }
@@ -100,8 +97,8 @@ export async function setCompactWindow(compact: boolean): Promise<void> {
   fullWindow = { size: await window.innerSize(), position: await window.outerPosition(), maximized, pinned }
   try {
     await preferenceWrites.catch(() => undefined)
-    const preferences = await load('preferences.json', { autoSave: false, defaults: {} })
-    const saved = await preferences.get<unknown>('overlayGeometry')
+    const preferences = await loadPreferences()
+    const saved = preferences.overlayGeometry
     const geometry = validGeometry(saved) ? saved : undefined
     const monitors = await availableMonitors()
     const monitor = (geometry && monitors.find(candidate => geometry.x >= candidate.workArea.position.x

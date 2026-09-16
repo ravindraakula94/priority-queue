@@ -4,6 +4,7 @@ use tauri::Manager;
 
 mod session;
 mod startup;
+mod storage;
 
 fn main() {
     tauri::Builder::default()
@@ -14,13 +15,16 @@ fn main() {
                 let _ = window.set_focus();
             }
         }))
-        .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_autostart::Builder::new().app_name("Priority Queue").build())
         .setup(|app| {
+            let directory = app.path().app_data_dir()?;
+            #[cfg(debug_assertions)]
+            let directory = std::env::var_os("PRIORITY_QUEUE_TEST_DATA_DIR").map(std::path::PathBuf::from).unwrap_or(directory);
+            app.manage(storage::SecureStorage::new(directory));
             session::start(app.handle().clone())?;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![session::get_session_state, startup::set_startup_enabled])
+        .invoke_handler(tauri::generate_handler![session::get_session_state, startup::set_startup_enabled, storage::read_app_data, storage::save_queue_data, storage::save_app_preference])
         .on_window_event(|window, event| {
             if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
                 session::stop();

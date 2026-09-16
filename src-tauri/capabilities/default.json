@@ -17,6 +17,10 @@
     "core:window:allow-start-dragging",
     "core:window:allow-destroy",
     "autostart:allow-is-enabled",
-    "store:default"
+    "allow-get-session-state",
+    "allow-set-startup-enabled",
+    "allow-read-app-data",
+    "allow-save-queue-data",
+    "allow-save-app-preference"
   ]
 }

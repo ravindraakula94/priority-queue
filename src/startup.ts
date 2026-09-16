@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { isEnabled } from '@tauri-apps/plugin-autostart'
-import { load } from '@tauri-apps/plugin-store'
+import { loadPreferences, savePreference } from './storage'
 
 export interface StartupSettings {
   enabled: boolean
@@ -10,8 +10,8 @@ export interface StartupSettings {
 
 export async function loadStartupSettings(): Promise<StartupSettings> {
   try {
-    const preferences = await load('preferences.json', { autoSave: false, defaults: {} })
-    return { enabled: await isEnabled(), choiceMade: await preferences.get('startupChoiceMade') === true }
+    const preferences = await loadPreferences()
+    return { enabled: await isEnabled(), choiceMade: preferences.startupChoiceMade === true }
   } catch (error) {
     return { enabled: false, choiceMade: false, error: `Could not read startup settings: ${String(error)}` }
   }
@@ -20,7 +20,5 @@ export async function loadStartupSettings(): Promise<StartupSettings> {
 export async function saveStartupSettings(enabled: boolean): Promise<void> {
   await invoke('set_startup_enabled', { enabled })
   if (await isEnabled() !== enabled) throw new Error('Windows did not apply the startup setting.')
-  const preferences = await load('preferences.json', { autoSave: false, defaults: {} })
-  await preferences.set('startupChoiceMade', true)
-  await preferences.save()
+  await savePreference('startupChoiceMade', true)
 }

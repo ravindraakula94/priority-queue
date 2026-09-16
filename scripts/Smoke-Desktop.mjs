@@ -1,8 +1,10 @@
 import { execFile, spawn } from 'node:child_process'
+import { Buffer } from 'node:buffer'
 import { once } from 'node:events'
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { fileURLToPath, URL } from 'node:url'
 import process from 'node:process'
@@ -11,9 +13,22 @@ import { chromium, expect } from '@playwright/test'
 import { LogicalSize, PhysicalPosition, Position, Size } from '@tauri-apps/api/dpi'
 
 if (process.platform !== 'win32') throw new Error('This smoke test requires Windows.')
-const executable = process.argv[2] ? resolve(process.argv[2]) : fileURLToPath(new URL('../src-tauri/target/release/priority-queue.exe', import.meta.url))
+if (process.argv[2]) throw new Error('Desktop smoke requires the isolated debug build, not an installed executable.')
+const executable = fileURLToPath(new URL('../src-tauri/target/debug/priority-queue.exe', import.meta.url))
+if (!(await readFile(executable)).includes(Buffer.from('PRIORITY_QUEUE_TEST_DATA_DIR'))) throw new Error('Build the isolated debug executable first.')
 const screenshotDirectory = fileURLToPath(new URL('../test-results', import.meta.url))
 const temporaryDirectory = await mkdtemp(join(tmpdir(), 'priority-queue-smoke-'))
+const queuePath = join(temporaryDirectory, 'queue.json')
+const preferencesPath = join(temporaryDirectory, 'preferences.json')
+await writeFile(queuePath, JSON.stringify({ queue: { version: 1, tasks: [], sessions: [], focusId: null, runningSince: null } }))
+await writeFile(preferencesPath, '{}')
+async function userDataHashes() {
+  return Promise.all(['queue.json', 'preferences.json'].map(async name => {
+    try { return createHash('sha256').update(await readFile(join(process.env.APPDATA, 'com.priorityqueue.desktop', name))).digest('hex') }
+    catch (error) { if (error.code === 'ENOENT') return null; throw error }
+  }))
+}
+const originalUserData = await userDataHashes()
 const runFile = promisify(execFile)
 const powershell = join(process.env.ProgramFiles, 'PowerShell/7/pwsh.exe')
 const startupKey = 'Software\\Microsoft\\Windows\\CurrentVersion\\Run'
@@ -29,7 +44,7 @@ await runFile(powershell, ['-NoProfile', '-Command', "if (Get-Process -Name prio
 const originalStartup = await startupRegistration()
 const originalApproval = await startupRegistration(startupApprovalKey)
 const launchApp = () => spawn(executable, [], {
-  env: { ...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=9223' },
+  env: { ...process.env, PRIORITY_QUEUE_TEST_DATA_DIR: temporaryDirectory, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=9223' },
   stdio: 'ignore',
 })
 let child = launchApp()
@@ -43,26 +58,9 @@ try {
   let page = context.pages()[0]
   const windowCommand = (command, args = {}) => page.evaluate(({ command, args }) => globalThis.__TAURI_INTERNALS__.invoke(`plugin:window|${command}`, { label: 'main', ...args }), { command, args })
   let expand = page.getByRole('button', { name: 'Expand to full view', exact: true })
-  const makeReadOnly = async () => page.evaluate(() => {
+  const readPreferences = () => page.evaluate(() => globalThis.__TAURI_INTERNALS__.invoke('read_app_data', { kind: 'preferences' }))
+  const simulateFailures = () => {
     const fetch = globalThis.fetch.bind(globalThis)
-    globalThis.fetch = (input, options) => {
-      const url = typeof input === 'string' ? new URL(input, globalThis.location.href) : null
-      if (url?.hostname === 'ipc.localhost' && ['plugin:store|set', 'plugin:store|save'].includes(decodeURIComponent(url.pathname.slice(1)))) {
-        return Promise.resolve(new globalThis.Response('null', { headers: { 'Content-Type': 'application/json', 'Tauri-Response': 'ok' } }))
-      }
-      return fetch(input, options)
-    }
-    globalThis.addEventListener('pagehide', event => event.stopImmediatePropagation(), { capture: true, once: true })
-  })
-  await expect(page.locator('.focus-overlay, .app-shell')).toBeVisible()
-  await makeReadOnly()
-  if (await expand.count()) {
-    await expand.click()
-    await expect(page.getByRole('button', { name: 'Compact overlay (Ctrl+Shift+M)', exact: true })).toBeEnabled()
-  }
-  const isolateStores = directory => {
-    const fetch = globalThis.fetch.bind(globalThis)
-    globalThis.__smokeStores = []
     globalThis.fetch = (input, options) => {
       const url = typeof input === 'string' ? new URL(input, globalThis.location.href) : null
       if (url?.hostname === 'ipc.localhost') {
@@ -70,22 +68,19 @@ try {
         if (command === `plugin:autostart|${globalThis.__startupFailure}` || (command === 'set_startup_enabled' && globalThis.__startupFailure === 'enable')) {
           return Promise.resolve(new globalThis.Response(JSON.stringify('Simulated startup failure'), { headers: { 'Content-Type': 'application/json', 'Tauri-Response': 'error' } }))
         }
-        if (command === 'plugin:store|load') {
-          const args = JSON.parse(options.body)
-          if (['queue.json', 'preferences.json'].includes(args.path)) {
-            const path = `${directory}\\${args.path}`
-            globalThis.__smokeStores.push(path)
-            return fetch(input, { ...options, body: JSON.stringify({ ...args, path }) })
-          }
-        }
       }
       return fetch(input, options)
     }
   }
-  await page.addInitScript(isolateStores, temporaryDirectory)
+  await page.addInitScript(simulateFailures)
   await page.reload()
   await expect(page.getByRole('dialog', { name: 'Welcome to Priority Queue' })).toBeVisible()
-  expect(await page.evaluate(() => globalThis.__smokeStores)).toEqual(expect.arrayContaining([join(temporaryDirectory, 'queue.json'), join(temporaryDirectory, 'preferences.json')]))
+  for (const path of [queuePath, preferencesPath]) expect((await readFile(path)).subarray(0, 8).toString()).toBe('PQDPAPI\x01')
+  for (const kind of ['../queue.json', 'C:\\outside.json', 'queue.json', 'other']) {
+    await expect(page.evaluate(kind => globalThis.__TAURI_INTERNALS__.invoke('read_app_data', { kind }), kind)).rejects.toBeTruthy()
+  }
+  await expect(page.evaluate(() => globalThis.__TAURI_INTERNALS__.invoke('plugin:store|load', { path: 'queue.json' }))).rejects.toBeTruthy()
+  await expect(page.evaluate(() => globalThis.__TAURI_INTERNALS__.invoke('save_app_preference', { key: '../outside', value: true }))).rejects.toBeTruthy()
   await expect(page.getByText('Your queue is clear.')).toBeVisible()
   await expect(page.getByRole('checkbox', { name: 'Start with Windows' })).toBeEnabled()
   expect(await startupRegistration()).toEqual(originalStartup)
@@ -96,7 +91,7 @@ try {
   await expect(page.getByRole('main', { name: 'Compact focus' })).toBeVisible()
   await expect(expand).toBeEnabled()
   expect(await startupRegistration()).toBeNull()
-  expect(JSON.parse(await readFile(join(temporaryDirectory, 'preferences.json'), 'utf8')).startupChoiceMade).toBe(true)
+  expect((await readPreferences()).startupChoiceMade).toBe(true)
   const scale = await windowCommand('scale_factor')
   await expect(async () => expect(await windowCommand('inner_size')).toEqual({ width: Math.round(420 * scale), height: Math.round(88 * scale) })).toPass()
   expect(await windowCommand('is_decorated')).toBe(false)
@@ -165,14 +160,8 @@ try {
   await page.screenshot({ path: `${screenshotDirectory}/desktop-native.png` })
   const normalSize = await windowCommand('inner_size')
   const normalPosition = await windowCommand('outer_position')
-  const preferencesPath = join(temporaryDirectory, 'preferences.json')
-  const defaultGeometry = JSON.parse(await readFile(preferencesPath, 'utf8')).overlayGeometry
-  const writeGeometry = async geometry => page.evaluate(async ({ path, geometry }) => {
-    const invoke = globalThis.__TAURI_INTERNALS__.invoke
-    const rid = await invoke('plugin:store|load', { path, options: { autoSave: false, defaults: {} } })
-    await invoke('plugin:store|set', { rid, key: 'overlayGeometry', value: geometry })
-    await invoke('plugin:store|save', { rid })
-  }, { path: preferencesPath, geometry })
+  const defaultGeometry = (await readPreferences()).overlayGeometry
+  const writeGeometry = geometry => page.evaluate(value => globalThis.__TAURI_INTERNALS__.invoke('save_app_preference', { key: 'overlayGeometry', value }), geometry)
   await page.getByRole('button', { name: 'Compact overlay (Ctrl+Shift+M)', exact: true }).click()
   await expect(expand).toBeEnabled()
   const monitor = await windowCommand('current_monitor')
@@ -180,7 +169,7 @@ try {
   const physicalSize = { width: Math.round(geometry.width * scale), height: Math.round(geometry.height * scale) }
   await windowCommand('set_size', { value: new Size(new LogicalSize(geometry.width, geometry.height)).toJSON() })
   await windowCommand('set_position', { value: new Position(new PhysicalPosition(geometry.x, geometry.y)).toJSON() })
-  await expect(async () => expect(JSON.parse(await readFile(preferencesPath, 'utf8')).overlayGeometry).toEqual(geometry)).toPass()
+  await expect(async () => expect((await readPreferences()).overlayGeometry).toEqual(geometry)).toPass()
   await expect(page.locator('.focus-overlay')).toHaveCSS('width', '500px')
   await expect(page.locator('.focus-overlay')).toHaveCSS('height', '140px')
   await page.screenshot({ path: `${screenshotDirectory}/desktop-overlay-resized.png`, omitBackground: true })
@@ -205,14 +194,8 @@ try {
   await expect(() => expect(browser.contexts()[0].pages().length).toBeGreaterThan(0)).toPass()
   page = browser.contexts()[0].pages()[0]
   await expect(page.locator('.focus-overlay, .app-shell')).toBeVisible()
-  await makeReadOnly()
   expand = page.getByRole('button', { name: 'Expand to full view', exact: true })
-  if (await expand.count()) {
-    await expand.click()
-    await expect(page.getByRole('button', { name: 'Compact overlay (Ctrl+Shift+M)', exact: true })).toBeEnabled()
-  }
-  await page.addInitScript(isolateStores, temporaryDirectory)
-  await page.reload()
+  await page.addInitScript(simulateFailures)
   await expect(expand).toBeEnabled()
   expect(await windowCommand('inner_size')).toEqual(physicalSize)
   expect(await windowCommand('outer_position')).toEqual({ x: geometry.x, y: geometry.y })
@@ -230,14 +213,15 @@ try {
   expect(recoveredPosition.y + recoveredSize.height).toBeLessThanOrEqual(recoveredMonitor.workArea.position.y + recoveredMonitor.workArea.size.height)
   await expand.click()
   await expect(page.getByRole('button', { name: 'Compact overlay (Ctrl+Shift+M)', exact: true })).toBeEnabled()
-  await writeGeometry({ x: 'invalid', width: -1 })
+  await expect(writeGeometry({ x: 'invalid', width: -1 })).rejects.toBeTruthy()
+  await writeGeometry(defaultGeometry)
   await page.getByRole('button', { name: 'Compact overlay (Ctrl+Shift+M)', exact: true }).click()
   await expect(expand).toBeEnabled()
   expect(await windowCommand('inner_size')).toEqual({ width: Math.round(420 * scale), height: Math.round(88 * scale) })
   await expand.click()
   await expect(page.getByRole('button', { name: 'Compact overlay (Ctrl+Shift+M)', exact: true })).toBeEnabled()
   await writeGeometry(defaultGeometry)
-  expect(JSON.parse(await readFile(preferencesPath, 'utf8')).startupChoiceMade).toBe(true)
+  expect((await readPreferences()).startupChoiceMade).toBe(true)
   for (const title of ['Publish the infra plugin to playground', 'Review the deployment logs']) {
     await page.getByRole('button', { name: 'New task', exact: true }).click()
     await page.getByLabel('Task', { exact: true }).fill(title)
@@ -303,10 +287,21 @@ try {
   await expect(page.getByRole('button', { name: 'Compact overlay (Ctrl+Shift+M)', exact: true })).toBeEnabled()
   await expect(async () => expect(await windowCommand('is_maximized')).toBe(true)).toPass()
   await expect(page.getByRole('alert')).toHaveCount(0)
+  const encryptedQueue = await readFile(queuePath)
+  expect(encryptedQueue.subarray(0, 8).toString()).toBe('PQDPAPI\x01')
+  expect(encryptedQueue.includes(Buffer.from('Publish the infra plugin'))).toBe(false)
+  expect((await readFile(preferencesPath)).includes(Buffer.from('startupChoiceMade'))).toBe(false)
+  const corruptedQueue = Buffer.from(encryptedQueue)
+  corruptedQueue[corruptedQueue.length - 1] ^= 1
+  await writeFile(queuePath, corruptedQueue)
+  await page.reload()
+  await expect(page.getByRole('alert')).toContainText('could not decrypt app data')
+  await expect(page.evaluate(() => globalThis.__TAURI_INTERNALS__.invoke('save_queue_data', { queue: { version: 1, tasks: [], sessions: [] } }))).rejects.toBeTruthy()
+  expect(await readFile(queuePath)).toEqual(corruptedQueue)
   const exited = once(child, 'exit', { signal: globalThis.AbortSignal.timeout(10000) })
   await page.evaluate(() => globalThis.__TAURI_INTERNALS__.invoke('plugin:window|destroy', { label: 'main' })).catch(() => undefined)
   await exited
-  log('Desktop smoke test passed: overlay resize/move persistence across mode changes, reload and restart, off-screen and invalid preference recovery, first-launch choice, autostart, settings failure/retry, transparency, full-window restoration, lock/unlock and shutdown. Test data used temporary stores; original startup entries are restored.')
+  log('Desktop smoke test passed: encrypted migration, restricted storage commands, corruption rejection, overlay restart persistence, startup settings, transparency and lock/unlock. Used a debug-only isolated profile; original startup entries are restored.')
 } finally {
   await browser?.close().catch(() => undefined)
   if (child.exitCode === null) child.kill()
@@ -315,5 +310,6 @@ try {
   } finally {
     await restoreStartupRegistration(startupApprovalKey, originalApproval)
     await rm(temporaryDirectory, { recursive: true, force: true })
+    expect(await userDataHashes()).toEqual(originalUserData)
   }
 }

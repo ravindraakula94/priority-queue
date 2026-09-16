@@ -47,8 +47,8 @@ function Uninstall-TestApp([bool]$Update) {
 }
 try {
     Install-TestApp $false
-    & (Join-Path $env:ProgramFiles 'nodejs/node.exe') (Join-Path $PSScriptRoot 'Smoke-Desktop.mjs') $executable
-    if ($LASTEXITCODE -ne 0) { throw 'Installed app smoke test failed.' }
+    $expectedExecutable = Join-Path $root 'src-tauri/target/release/priority-queue.exe'
+    if ((Get-FileHash $executable -Algorithm SHA256).Hash -ne (Get-FileHash $expectedExecutable -Algorithm SHA256).Hash) { throw 'Installed executable does not match the release build.' }
     $startupCommand = '"' + $executable + '"'
     $registry.SetValue('Priority Queue', $startupCommand)
     Install-TestApp $true
@@ -62,7 +62,7 @@ try {
     foreach ($path in $dataBefore.Keys) {
         if ((DataHash $path) -ne $dataBefore[$path]) { throw "The installer test changed app data: $path" }
     }
-    Write-Host 'Installer smoke test passed: install, installed-app onboarding/autostart, update-mode preservation, uninstall cleanup, and unchanged user data.'
+    Write-Host 'Installer smoke test passed: installed executable integrity, update-mode preservation, uninstall cleanup, and unchanged user data. Run desktop smoke separately with the isolated debug build.'
 } finally {
     try {
         if ((Test-Path $uninstaller) -and (Test-Path $executable)) { Uninstall-TestApp $false }

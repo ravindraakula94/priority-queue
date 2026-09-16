@@ -31,7 +31,7 @@ Startup applies to your Windows account at sign-in, not before login. The app do
 
 Uninstall through Windows **Settings > Apps > Installed apps**. The uninstaller removes the startup entry. Task data is retained unless you explicitly select the uninstaller's option to delete app data. Installing over a previous standalone copy uses the same task-data location; close the old copy and launch the installed app afterward.
 
-The release is unsigned, so Windows SmartScreen may warn about an unrecognized publisher. Verify the source/build before running; production distribution should use a code-signing certificate.
+The published v0.2.0 installer is unsigned. Local builds can optionally be self-signed as described below; self-signing does not establish a publicly trusted publisher or guarantee removal of Windows SmartScreen warnings. Verify the source/build before running. Public distribution should use a trusted code-signing certificate or approved signing service.
 
 ## Development
 
@@ -66,9 +66,36 @@ Native smoke tests use `npm run desktop:test-build` instead, so their data direc
 
 The helper adds conventional Node and Cargo locations to its process PATH and reports the installer path, size, and SHA-256 hash. It does not install or modify system software. `npm run desktop:build` is also available when the toolchains are already on PATH. Icons can be regenerated with `scripts/Generate-Icon.ps1`.
 
+### Self-Signed Builds
+
+On the Windows build machine, use PowerShell 7 and the Windows SDK signing tools:
+
+```powershell
+.\scripts\Initialize-SelfSigning.ps1
+.\scripts\Build-Windows.ps1 -SelfSign
+```
+
+Setup creates a two-year, SHA-256/RSA-3072 code-signing certificate named `Priority Queue (Self-Signed)` in `Cert:\CurrentUser\My`. Its private key is a non-exportable Windows CNG software key, kept outside the repository. Running setup again reuses the configured certificate rather than silently changing the signing identity. Setup does not add the certificate to Trusted Root or Trusted Publishers, and does not require administrator access.
+
+The local, ignored `.signing/` directory contains a Tauri signing override and `PriorityQueue-SelfSigned.cer`, which contains only the public certificate. Do not commit signing configuration, export private keys into the repository, or share private-key containers. The public `.cer` may be shared with testers; publish its SHA-256 fingerprint through a channel they already trust before asking them to trust it. Windows trust-store changes are a separate, explicit decision, not part of installation or these scripts. Self-signing asserts this project's identity; no certificate authority has verified it.
+
+`-SelfSign` makes Tauri sign the app inside the installer, the uninstaller, and the setup executable. SignTool obtains an RFC 3161 timestamp from `timestamp.digicert.com`, so signing needs network access. This timestamp request is build-time activity, not app telemetry. The build checks the signer and timestamp and reports the final installer hash. A chain ending in an untrusted root is expected on machines that have not explicitly trusted this certificate; it must not be confused with a missing signature or modified file. Tauri restores the unsigned intermediate `target/release/priority-queue.exe` after packaging, so inspect the installed or extracted app when verifying the bundled signature.
+
+With 7-Zip installed, verify all three signatures without installing or trusting anything:
+
+```powershell
+.\scripts\Test-SelfSigning.ps1
+```
+
+This extracts the installer into a temporary folder, checks the certificate and timestamp on the installer, app, and uninstaller, and verifies that modifying a temporary app copy produces `HashMismatch`. Supply `-SevenZip` if 7-Zip is not in its conventional install directory. The temporary files are removed afterward.
+
+`Build-Windows.ps1 -NoBundle -SelfSign` signs the standalone development artifact instead. Normal builds without `-SelfSign` remain unsigned. The certificate/key are tied to this Windows profile; loss of the profile or key requires a new signing identity. Renew explicitly before expiry. A trusted timestamp records when signing occurred, but does not make the self-signed identity trusted.
+
+Signing changes file hashes. Never overwrite an existing published release with differently signed files under the same version. Bump the version, build, verify, and publish a new release. Setting up local self-signing does not alter the existing GitHub release.
+
 ### Publishing
 
-For each release, update the version consistently in `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, and the lockfiles. Run validation, build with `Build-Windows.ps1` without `-NoBundle`, and upload only the matching `*-setup.exe` and `LICENSE` to the GitHub release. Include the installer's SHA-256 hash in the release notes. The executable under `target/release/` is an internal build artifact, not a release download.
+For each release, update the version consistently in `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, and the lockfiles. Run validation, build with `Build-Windows.ps1` without `-NoBundle` (add `-SelfSign` for local self-signing), and upload the matching `*-setup.exe` and `LICENSE` to the GitHub release. For a self-signed release, disclose its trust limitations and optionally include the public `.cer` with its independently verifiable fingerprint. Include the final installer's SHA-256 hash in the release notes. The executable under `target/release/` is an internal build artifact, not a release download.
 
 For in-place upgrades that preserve startup registration, use the installer's update mode, for example `& '.\Priority Queue_<version>_x64-setup.exe' /UPDATE`. A full uninstall followed by reinstall removes startup registration; re-enable it in Settings afterward if needed.
 

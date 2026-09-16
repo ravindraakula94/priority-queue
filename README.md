@@ -6,9 +6,9 @@
 
 ![Priority Queue with a focused task, its timer, four queued tasks, tags, due dates, and daily totals](docs/images/queue.png)
 
-*Real Windows app screenshots with fictional tasks. This guide describes the current source, including features not yet in a published installer.*
+*Real Windows app screenshots with fictional tasks. This guide describes v1.0.0.*
 
-> **Release availability:** The published `v0.2.0` installer includes optional Windows startup and saved overlay size/position. Encrypted storage, deletion of task history, and the in-app Privacy notice shown here are newer source features. Check the release notes for the version you download. The published `v0.2.0` installer is unsigned; self-signed builds are not automatically trusted by other PCs either.
+> **v1.0.0:** Includes encrypted local storage, permanent task/history deletion, and the offline Privacy notice. The installer is self-signed by **Ravindra Akula** and timestamped. This is not a publicly trusted certificate: Windows may still warn about an unknown publisher. Read the release notes, especially the encryption migration warning, before upgrading from v0.2.0 or earlier.
 
 ## Get started
 
@@ -88,13 +88,13 @@ Daily totals follow your local calendar, including sessions that cross midnight.
 | **Complete** | Moves the task to **Completed** and records its completion time. History remains. |
 | **Archive** | Moves the task out of the active queue without deleting its history. |
 | **Restore / Return to queue** | Brings the task back to the queue and clears its completed status. |
-| **Delete** | After confirmation, permanently removes the task and its entire focus history in the current source version. Other tasks are unchanged. |
+| **Delete** | After confirmation, permanently removes the task and its entire focus history. Other tasks are unchanged. |
 
 ![Deletion confirmation explaining that the task, historical titles, and focus sessions will be removed](docs/images/delete-confirmation.png)
 
 Deletion changes activity totals and has no undo after a successful save. If you see **Save failed**, use **Retry save** before closing; removal is not durable until saving succeeds. Archive instead of deleting when you want to keep the record.
 
-Older versions retained history for deleted tasks. In the current source version, **Privacy > Delete retained history** offers a confirmed cleanup of those sessions only. It leaves history for queued, completed, and archived tasks intact. Deletion is not secure erasure of backups or old disk contents.
+Older versions retained history for deleted tasks. **Privacy > Delete retained history** offers a confirmed cleanup of those sessions only. It leaves history for queued, completed, and archived tasks intact. Deletion is not secure erasure of backups or old disk contents.
 
 ## Start with Windows
 
@@ -108,7 +108,7 @@ Subsequent launches open in mini mode with the timer paused. Windows Startup App
 
 No app account, cloud synchronization, advertising, or task-data upload service is required. Changes save automatically on your PC, with visible errors and a retry action when saving fails.
 
-In the current source version, Windows DPAPI encrypts tasks, focus history, and preferences for your Windows account. The files live under `%APPDATA%\com.priorityqueue.desktop`. Valid plaintext files from earlier Priority Queue versions migrate on first read.
+Windows DPAPI encrypts tasks, focus history, and preferences for your Windows account. The files live under `%APPDATA%\com.priorityqueue.desktop`. Valid plaintext files from earlier Priority Queue versions migrate on first read.
 
 **Important:** protect your Windows profile and its backups. Encryption does not protect against software running as the same user, and copying these files alone to another account or reinstalled Windows is not a supported recovery method. Do not downgrade to `v0.2.0` or earlier after encrypted migration; those versions cannot read the new format and may overwrite it.
 

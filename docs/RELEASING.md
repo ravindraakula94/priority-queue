@@ -12,7 +12,7 @@ Distribute the **Windows NSIS installer**, not the intermediate standalone app e
 4. Build and verify the versioned installer below. Disclose any checks that could not be completed.
 5. Commit and push the source that produced the installer, then attach the verified artifacts to a release targeting that exact commit.
 
-The current source includes encryption and permanent history deletion that were not in published `v0.2.0`. Warn users that older plaintext-only versions cannot read migrated encrypted files and may overwrite them. Do not replace existing release assets with these changes under the old version number.
+Version `v1.0.0` introduces encryption and permanent history deletion that were not in `v0.2.0`. Warn users that older plaintext-only versions cannot read migrated encrypted files and may overwrite them. Do not replace existing release assets with these changes under the old version number.
 
 ## Build the installer
 
@@ -32,7 +32,7 @@ The installer is per-user, creates a Start menu entry, and can download the Micr
 
 ## Self-signed builds
 
-Self-signing detects later file modification and asserts a publisher name. It does **not** provide independently verified publisher identity, establish public trust, or guarantee removal of SmartScreen warnings. The published `v0.2.0` release is unsigned; enabling signing locally does not change it.
+Self-signing detects later file modification and asserts a publisher name. It does **not** provide independently verified publisher identity, establish public trust, or guarantee removal of SmartScreen warnings. The `v1.0.0` installer uses a self-signed certificate named **Ravindra Akula**. The older `v0.2.0` release remains unsigned.
 
 With PowerShell 7 and the Windows SDK installed:
 
@@ -41,7 +41,9 @@ With PowerShell 7 and the Windows SDK installed:
 .\scripts\Build-Windows.ps1 -SelfSign
 ```
 
-Setup creates a two-year SHA-256/RSA-3072 code-signing certificate, `Priority Queue (Self-Signed)`, in `Cert:\CurrentUser\My`. Its non-exportable CNG software private key stays in the Windows profile, outside the repository. Rerunning setup reuses the configured identity. Certificate expiry or key loss requires explicit renewal or replacement.
+Setup creates a two-year SHA-256/RSA-3072 code-signing certificate, `CN=Ravindra Akula`, in `Cert:\CurrentUser\My`. Its non-exportable CNG software private key stays in the Windows profile, outside the repository. Rerunning setup reuses the configured identity. Certificate expiry or key loss requires explicit renewal or replacement.
+
+A certificate's subject cannot be edited in place. To explicitly replace an existing signing identity, run `Initialize-SelfSigning.ps1 -Subject 'CN=Ravindra Akula' -Rotate`. This retains the previous public certificate and configuration under `.signing/previous-*` and leaves the previous certificate/private key in the user store. It then creates a new certificate/key and selects it for subsequent builds. Do not rotate on every build: the certificate fingerprint changes, and users who chose to trust an older certificate would need to evaluate the new identity separately.
 
 The ignored `.signing/` directory contains:
 

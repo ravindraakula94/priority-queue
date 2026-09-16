@@ -1,4 +1,4 @@
-param([string]$Subject = 'CN=Priority Queue (Self-Signed)')
+param([string]$Subject = 'CN=Ravindra Akula', [switch]$Rotate)
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
@@ -11,12 +11,19 @@ $key = $null
 $rsa = $null
 $certificate = $null
 try {
-    if (Test-Path $configurationPath) {
+    if ($Rotate -and (Test-Path $configurationPath)) {
+        $backupDirectory = Join-Path $signingDirectory ('previous-' + [guid]::NewGuid())
+        New-Item -ItemType Directory -Path $backupDirectory | Out-Null
+        Copy-Item $configurationPath $backupDirectory
+        if (Test-Path $publicCertificatePath) { Copy-Item $publicCertificatePath $backupDirectory }
+        Write-Host ('Previous public signing configuration retained in ' + $backupDirectory)
+    }
+    if ((Test-Path $configurationPath) -and !$Rotate) {
         $configuration = Get-Content $configurationPath -Raw | ConvertFrom-Json
         $thumbprint = $configuration.bundle.windows.certificateThumbprint
         $certificate = $store.Certificates | Where-Object { $_.Thumbprint -eq $thumbprint } | Select-Object -First 1
         if (!$certificate -or !$certificate.HasPrivateKey) { throw 'The configured signing certificate or private key is missing from this Windows account.' }
-        if ($certificate.Subject -ne $Subject) { throw 'The configured certificate has a different subject. Keep the existing identity or use a separate signing configuration.' }
+        if ($certificate.Subject -ne $Subject) { throw 'The configured certificate has a different subject. Use -Rotate to explicitly create a new identity while retaining the previous certificate.' }
         if ($certificate.NotAfter -le (Get-Date).AddDays(30)) { throw 'The signing certificate expires within 30 days. Renew it explicitly before signing a release.' }
     } else {
         $parameters = [System.Security.Cryptography.CngKeyCreationParameters]::new()

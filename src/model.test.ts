@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { checkpoint, dailySummary, emptyState, persistedState, restoreState, taskMilliseconds, transition, type QueueState, type QueueTask } from './model.ts'
+import { checkpoint, dailySummary, emptyState, persistedState, presetRange, rangeBuckets, rangeSummary, restoreState, taskMilliseconds, transition, type QueueState, type QueueTask } from './model.ts'
 
 const first: QueueTask = { id: 'first', title: 'First task', tags: ['work'], due: '', status: 'queued', createdAt: 0, completedAt: null }
 const second: QueueTask = { ...first, id: 'second', title: 'Second task' }
@@ -153,5 +153,66 @@ describe('queue and focus', () => {
     assert.equal(transition(state, { type: 'focus', id: 'first' }, 2000).focusId, null)
     assert.throws(() => restoreState({ version: 2 }))
     assert.throws(() => restoreState({ ...setup(), tasks: [first, first] }))
+  })
+})
+
+describe('activity ranges', () => {
+  it('builds last 7 days, this month and last month from local calendar days', () => {
+    const today = new Date(2026, 2, 5, 15, 30)
+    assert.deepEqual(presetRange('week', today), { from: '2026-02-27', to: '2026-03-05' })
+    assert.deepEqual(presetRange('month', today), { from: '2026-03-01', to: '2026-03-05' })
+    assert.deepEqual(presetRange('last-month', today), { from: '2026-02-01', to: '2026-02-28' })
+    assert.deepEqual(presetRange('last-month', new Date(2026, 0, 1)), { from: '2025-12-01', to: '2025-12-31' })
+  })
+
+  it('includes completed and archived tasks within inclusive day bounds, newest first', () => {
+    const at = (day: number, hour = 12, minute = 0, second = 0, millisecond = 0) => new Date(2026, 2, day, hour, minute, second, millisecond).getTime()
+    const done = (id: string, completedAt: number | null, status: QueueTask['status'] = 'completed'): QueueTask => ({ ...first, id, title: id, status, completedAt })
+    const state: QueueState = {
+      ...emptyState(),
+      tasks: [
+        done('before', at(1, 23, 59, 59, 999)),
+        done('start', at(2, 0)),
+        done('archived', at(5), 'archived'),
+        done('end', at(8, 23, 59, 59, 999)),
+        done('after', at(9, 0)),
+        done('restored', null, 'queued'),
+        done('archived-unfinished', null, 'archived'),
+      ],
+    }
+    const summary = rangeSummary(state, new Date(2026, 2, 2), new Date(2026, 2, 8), at(12))
+    assert.deepEqual(summary.completed.map(task => task.id), ['end', 'archived', 'start'])
+    assert.equal(dailySummary(state, new Date(2026, 2, 5), at(12)).completed, 1)
+  })
+
+  it('sums focus time across days and clips sessions at range edges', () => {
+    const state: QueueState = {
+      ...setup(),
+      sessions: [
+        { taskId: 'first', title: 'First task', start: new Date(2026, 2, 1, 23, 50).getTime(), end: new Date(2026, 2, 2, 0, 10).getTime() },
+        { taskId: 'second', title: 'Second task', start: new Date(2026, 2, 4, 9).getTime(), end: new Date(2026, 2, 4, 10).getTime() },
+        { taskId: 'first', title: 'First task', start: new Date(2026, 2, 8, 23, 55).getTime(), end: new Date(2026, 2, 9, 0, 5).getTime() },
+      ],
+    }
+    const summary = rangeSummary(state, new Date(2026, 2, 2), new Date(2026, 2, 8), Date.now())
+    assert.equal(summary.milliseconds, (10 + 60 + 5) * 60000)
+    assert.deepEqual(summary.byTask.map(([id, entry]) => [id, entry.milliseconds]), [['second', 3600000], ['first', 15 * 60000]])
+  })
+
+  it('charts by day up to 31 days, by week up to 26 weeks, then by month', () => {
+    const march = rangeBuckets('2026-03-01', '2026-03-31')
+    assert.equal(march.unit, 'day')
+    assert.equal(march.buckets.length, 31)
+    assert.deepEqual(march.buckets.slice(6, 9).map(bucket => bucket.from), ['2026-03-07', '2026-03-08', '2026-03-09'])
+    assert.deepEqual(march.buckets.at(-1), { from: '2026-03-31', to: '2026-03-31' })
+    const weeks = rangeBuckets('2026-01-01', '2026-02-01')
+    assert.equal(weeks.unit, 'week')
+    assert.deepEqual(weeks.buckets.map(bucket => bucket.from), ['2026-01-01', '2026-01-08', '2026-01-15', '2026-01-22', '2026-01-29'])
+    assert.deepEqual(weeks.buckets.at(-1), { from: '2026-01-29', to: '2026-02-01' })
+    const months = rangeBuckets('2025-01-15', '2025-12-31')
+    assert.equal(months.unit, 'month')
+    assert.equal(months.buckets.length, 12)
+    assert.deepEqual(months.buckets[0], { from: '2025-01-15', to: '2025-01-31' })
+    assert.deepEqual(months.buckets.at(-1), { from: '2025-12-01', to: '2025-12-31' })
   })
 })

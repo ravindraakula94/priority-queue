@@ -133,6 +133,10 @@ h1 { font-size: 21px; line-height: 1.15; font-weight: 650; }
 .activity-section { padding: 28px 32px; }
 .activity-header { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
 .activity-header h2 { font-size: 22px; font-weight: 500; margin-top: 8px; }
+.range-dates { display: block; font-size: 11px; color: var(--muted); margin-top: 6px; }
+.activity-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.activity-controls select { font-size: 11px; color: var(--muted); padding: 7px 6px; background: #1d2022; }
+.range-separator { color: var(--faint); padding-inline: 4px; }
 .date-controls { display: flex; align-items: center; gap: 3px; }
 .date-controls input { font-size: 11px; padding: 6px; width: 131px; min-width: 0; }
 .activity-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-block: 30px; }
@@ -144,6 +148,11 @@ h1 { font-size: 21px; line-height: 1.15; font-weight: 650; }
 .week-chart { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); height: 145px; gap: 16px; padding: 0 0 22px; border-bottom: 1px solid var(--line); margin-bottom: 26px; }
 .week-chart button { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--faint); font-size: 10px; padding: 0 8px; border-radius: 2px; }
 .week-chart button:hover { background: #ffffff05; }
+.week-chart.dense { gap: 3px; overflow-x: clip; }
+.week-chart.dense button { padding-inline: 0; }
+.week-chart.dense .chart-value { visibility: hidden; }
+.week-chart.dense .bar-label { align-self: flex-start; white-space: nowrap; }
+.week-chart.dense button:last-child .bar-label { align-self: flex-end; }
 .bar-track { display: flex; align-items: flex-end; height: 70px; width: 100%; border-bottom: 1px solid var(--line); }
 .bar-track > span { width: 100%; background: #46534b; border-radius: 3px 3px 0 0; }
 .selected .bar-track > span { background: var(--mint); }
@@ -153,6 +162,13 @@ h1 { font-size: 21px; line-height: 1.15; font-weight: 650; }
 .breakdown-list li { display: flex; gap: 20px; align-items: center; justify-content: space-between; padding: 14px 10px; border-top: 1px solid var(--line); font-size: 12px; }
 .breakdown-list li span { overflow-wrap: anywhere; min-width: 0; }
 .breakdown-list strong { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; font-weight: 400; }
+.completed-list { list-style: none; margin: 0; padding: 0; }
+.completed-list li { display: flex; gap: 16px; align-items: center; padding: 14px 10px; border-top: 1px solid var(--line); font-size: 12px; }
+.completed-title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.status-badge { font-family: var(--mono); font-size: 9px; color: var(--muted); background: #ffffff08; border-radius: 3px; padding: 2px 5px; margin-left: 8px; white-space: nowrap; }
+.completed-when { font-size: 11px; color: var(--faint); white-space: nowrap; }
+.completed-list strong { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; font-weight: 400; min-width: 44px; text-align: right; }
+.list-heading.spaced { margin-top: 26px; }
 
 .app-footer { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 51px; border-top: 1px solid var(--line); padding: 14px 32px; font-family: var(--mono); font-size: 9px; color: var(--faint); }
 .app-footer > span:first-child { display: flex; align-items: center; gap: 7px; overflow-wrap: anywhere; min-width: 0; }

@@ -284,3 +284,74 @@ test('overlay is translucent, stays 88px tall and handles long task text at narr
     await page.screenshot({ path: `test-results/overlay-${width}-hover.png`, omitBackground: true })
   }
 })
+
+test('activity lists completed and archived tasks for 7 days, this month, last month and custom ranges', async ({ page }) => {
+  const at = (value: string) => new Date(value).getTime()
+  const task = (id: string, title: string, status: string, completedAt: number | null) => ({ id, title, tags: [], due: '', status, createdAt: at('2026-09-01T08:00:00'), completedAt })
+  const state = {
+    version: 1,
+    tasks: [
+      task('recent', 'Recent report', 'completed', at('2026-11-11T15:00:00')),
+      task('archived', 'Archived review', 'archived', at('2026-11-06T09:00:00')),
+      task('early', 'Early November', 'completed', at('2026-11-02T11:00:00')),
+      task('october', 'October wrap-up', 'completed', at('2026-10-20T17:00:00')),
+      task('september', 'Old September task', 'completed', at('2026-09-10T10:00:00')),
+      task('restored', 'Restored task', 'queued', null),
+    ],
+    sessions: [
+      { taskId: 'recent', title: 'Recent report', start: at('2026-11-11T14:00:00'), end: at('2026-11-11T15:00:00') },
+      { taskId: 'october', title: 'October wrap-up', start: at('2026-10-20T10:00:00'), end: at('2026-10-20T10:30:00') },
+    ],
+    focusId: null,
+    runningSince: null,
+  }
+  await page.clock.install({ time: new Date('2026-11-12T10:00:00') })
+  await page.addInitScript(state => {
+    if (!localStorage.getItem('priority-queue.v1')) localStorage.setItem('priority-queue.v1', JSON.stringify(state))
+  }, state)
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Activity', exact: true }).click()
+  const range = page.getByLabel('Activity range')
+  const completed = page.locator('.completed-list li')
+  await expect(page.getByText('No tasks completed in this period.')).toBeVisible()
+
+  await range.selectOption('week')
+  await expect(page.getByRole('heading', { name: 'Last 7 days' })).toBeVisible()
+  await expect(completed).toHaveText([/^Recent report/, /^Archived reviewArchived/])
+  await expect(page.locator('.activity-section .list-heading').first()).toContainText('2 TASKS · 1h 0m')
+  await expect(page.locator('.activity-stats > div').nth(1)).toContainText('02')
+  await expect(page.locator('.week-chart button')).toHaveCount(7)
+
+  await range.selectOption('month')
+  await expect(completed).toHaveText([/^Recent report/, /^Archived review/, /^Early November/])
+  await expect(page.locator('.week-chart button')).toHaveCount(12)
+
+  await range.selectOption('last-month')
+  await expect(completed).toHaveText([/^October wrap-up/])
+  await expect(page.locator('.activity-stats > div').first()).toContainText('30m')
+  await expect(page.locator('.week-chart button')).toHaveCount(31)
+
+  await range.selectOption('custom')
+  await expect(page.getByLabel('From date')).toHaveValue('2026-10-01')
+  await expect(page.getByLabel('To date')).toHaveValue('2026-10-31')
+  await page.getByLabel('From date').fill('2026-09-01')
+  await expect(completed).toHaveText([/^October wrap-up/, /^Old September task/])
+  await expect(page.locator('.week-chart button')).toHaveCount(9)
+  await page.getByLabel('To date').fill('2026-09-30')
+  await expect(completed).toHaveText([/^Old September task/])
+  await page.getByLabel('From date').fill('2026-10-15')
+  await expect(page.getByLabel('To date')).toHaveValue('2026-10-15')
+  await expect(page.getByText('No tasks completed in this period.')).toBeVisible()
+
+  await range.selectOption('week')
+  await page.locator('.week-chart button').nth(5).click()
+  await expect(range).toHaveValue('day')
+  await expect(page.getByLabel('Activity date')).toHaveValue('2026-11-11')
+  await expect(completed).toHaveText([/^Recent report/])
+
+  await page.setViewportSize({ width: 360, height: 800 })
+  await range.selectOption('custom')
+  await page.getByLabel('From date').fill('2026-09-01')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.screenshot({ path: 'test-results/activity-range-mobile.png', fullPage: true })
+})

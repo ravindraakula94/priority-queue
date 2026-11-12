@@ -23,7 +23,7 @@ try {
         Write-Host 'Self-signing with the local Windows identity. Other PCs will not automatically trust this publisher.'
     }
     if (!(Test-Path 'src-tauri/icons/icon.ico')) { & "$PSScriptRoot/Generate-Icon.ps1" }
-    & npm.cmd @arguments
+    & npm @arguments
     if ($LASTEXITCODE -ne 0) { throw "Desktop build failed with exit code $LASTEXITCODE" }
     $artifacts = @()
     if ($NoBundle) {

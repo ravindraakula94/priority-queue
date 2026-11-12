@@ -6,9 +6,9 @@
 
 ![Priority Queue with a focused task, its timer, four queued tasks, tags, due dates, and daily totals](docs/images/queue.png)
 
-*Real Windows app screenshots with fictional tasks. This guide describes v1.1.0.*
+*Real Windows app screenshots with fictional tasks. This guide describes v1.2.0.*
 
-> **v1.1.0:** Adds system tray controls for mini mode and makes full view a regular, unpinned window by default. Encrypted local storage, permanent task/history deletion, and the offline Privacy notice are retained. The installer is self-signed by **Ravindra Akula** and timestamped. This is not a publicly trusted certificate: Windows may still warn about an unknown publisher. Read the release notes, especially the encryption migration warning, before upgrading from v0.2.0 or earlier.
+> **v1.2.0:** The Activity tab can now show tasks completed in the last 7 days, this month, last month, or a custom date range, with total focus time for each. System tray controls, encrypted local storage, permanent task/history deletion, and the offline Privacy notice are retained. The installer is self-signed by **Ravindra Akula** and timestamped. This is not a publicly trusted certificate: Windows may still warn about an unknown publisher. Read the release notes, especially the encryption migration warning, before upgrading from v0.2.0 or earlier.
 
 ## Get started
 
@@ -80,15 +80,18 @@ An open editing dialog must be finished or closed before the tray can switch to 
 
 Open **Activity** or select the arrow beside the Today totals.
 
-![Activity view showing daily focus time, completed and focused task counts, a seven-day chart, and per-task time breakdown](docs/images/activity.png)
+![Activity view showing daily focus time, completed and focused task counts, a seven-day chart, the tasks completed that day, and per-task time breakdown](docs/images/activity.png)
 
 Use the date picker, previous/next arrows, or a chart bar to inspect a day. You can see:
 
 - Total focus time, number of tasks completed, and number of tasks focused.
 - A seven-day view of your focus time.
+- The tasks you completed, newest first, with each task's total focus time. Tasks you later archived are included and marked **Archived**.
 - A per-task breakdown, ordered by time spent.
 
-Daily totals follow your local calendar, including sessions that cross midnight. The selected task's all-time timer and the day's total can therefore show different values.
+To look back further, change **Day** to **Last 7 days** (today and the six days before), **This month**, **Last month**, or **Custom range**. The totals, chart, and completed list then cover the whole period. Ranges up to 31 days chart each day, longer ranges chart by week, and ranges over 26 weeks chart by month. Select a bar to open that day or week.
+
+Daily totals follow your local calendar, including sessions that cross midnight. The selected task's all-time timer and the day's total can therefore show different values. Tasks returned to the queue no longer count as completed, and deleted tasks are gone from every range.
 
 **Try this:** at the end of a day, compare the breakdown with what you meant to prioritize. Reorder tomorrow's queue before closing the app.
 

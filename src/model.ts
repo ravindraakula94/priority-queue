@@ -151,9 +151,43 @@ export function dayKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
+export type ActivityRange = 'day' | 'week' | 'month' | 'last-month' | 'custom'
+
+export function parseDayKey(key: string): Date {
+  const [year, month, day] = key.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
+export function presetRange(range: 'week' | 'month' | 'last-month', today: Date): { from: string; to: string } {
+  const year = today.getFullYear(), month = today.getMonth(), day = today.getDate()
+  if (range === 'week') return { from: dayKey(new Date(year, month, day - 6)), to: dayKey(today) }
+  if (range === 'month') return { from: dayKey(new Date(year, month, 1)), to: dayKey(today) }
+  return { from: dayKey(new Date(year, month - 1, 1)), to: dayKey(new Date(year, month, 0)) }
+}
+
+export function rangeBuckets(from: string, to: string): { unit: 'day' | 'week' | 'month'; buckets: { from: string; to: string }[] } {
+  const start = parseDayKey(from), end = parseDayKey(to)
+  const days = Math.round((end.getTime() - start.getTime()) / 86400000) + 1
+  const unit = days <= 31 ? 'day' : days <= 182 ? 'week' : 'month'
+  const buckets: { from: string; to: string }[] = []
+  for (let cursor = start; cursor <= end;) {
+    const next = unit === 'month' ? new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1)
+      : new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + (unit === 'week' ? 7 : 1))
+    const last = new Date(next.getFullYear(), next.getMonth(), next.getDate() - 1)
+    buckets.push({ from: dayKey(cursor), to: dayKey(last < end ? last : end) })
+    cursor = next
+  }
+  return { unit, buckets }
+}
+
 export function dailySummary(state: QueueState, date: Date, now: number) {
-  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
-  const end = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1).getTime()
+  const { completed, ...summary } = rangeSummary(state, date, date, now)
+  return { ...summary, completed: completed.length }
+}
+
+export function rangeSummary(state: QueueState, from: Date, to: Date, now: number) {
+  const start = new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime()
+  const end = new Date(to.getFullYear(), to.getMonth(), to.getDate() + 1).getTime()
   const sessions = checkpoint(state, now).sessions
   const byTask = new Map<string, { title: string; milliseconds: number }>()
   let milliseconds = 0
@@ -167,7 +201,8 @@ export function dailySummary(state: QueueState, date: Date, now: number) {
       milliseconds: (previous?.milliseconds ?? 0) + overlap,
     })
   }
-  const completed = state.tasks.filter(task => task.completedAt !== null && task.completedAt >= start && task.completedAt < end).length
+  const completed = state.tasks.filter(task => task.completedAt !== null && task.completedAt >= start && task.completedAt < end)
+    .sort((first, second) => (second.completedAt ?? 0) - (first.completedAt ?? 0))
   return { milliseconds, completed, byTask: [...byTask.entries()].sort((first, second) => second[1].milliseconds - first[1].milliseconds) }
 }
 

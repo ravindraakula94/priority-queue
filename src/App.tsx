@@ -3,7 +3,7 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Activity, Archive, ArrowDown, ArrowUp, ArrowUpRight, CalendarDays, Check, CheckCheck, ChevronLeft, ChevronRight, Circle, CircleCheck, Clock3, GripVertical, ListOrdered, Maximize2, Minimize2, MoreHorizontal, Pause, Pencil, Pin, PinOff, Play, Plus, RotateCcw, Search, Settings, ShieldCheck, Trash2, TriangleAlert, X } from 'lucide-react'
-import { clock, dailySummary, dayKey, duration, makeTask, parseTags, taskMilliseconds, transition, type Action, type QueueState, type QueueTask } from './model'
+import { clock, dailySummary, dayKey, duration, makeTask, parseDayKey, parseTags, presetRange, rangeBuckets, rangeSummary, taskMilliseconds, transition, type Action, type ActivityRange, type QueueState, type QueueTask } from './model'
 import { desktop, saveQueue } from './storage'
 import { dragOverlay, initializeTray, saveOverlayPreferences, setCompactWindow, watchOverlayPreferences } from './windowMode'
 import { watchSession, type SessionState } from './session'
@@ -11,6 +11,11 @@ import { loadStartupSettings, saveStartupSettings, type StartupSettings } from '
 import privacyNotice from '../PRIVACY.txt?raw'
 
 type View = 'queued' | 'completed' | 'archived' | 'activity'
+const rangeTitles = { week: 'Last 7 days', month: 'This month', 'last-month': 'Last month', custom: 'Custom range' } as const
+
+function formatDay(key: string, options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' }) {
+  return parseDayKey(key).toLocaleDateString(undefined, options)
+}
 type DialogState = { kind: 'edit'; task?: QueueTask } | { kind: 'delete'; task: QueueTask } | { kind: 'startup'; firstRun: boolean } | { kind: 'privacy' | 'purge-history' } | null
 
 function IconButton({ label, children, onClick, disabled = false, active = false }: { label: string; children: ReactNode; onClick: () => void; disabled?: boolean; active?: boolean }) {
@@ -152,6 +157,8 @@ export default function App({ initialState, initialStartup }: { initialState: Qu
   const locked = useRef(false)
   const lastLock = useRef(Date.now())
   const [activityDay, setActivityDay] = useState(dayKey(new Date()))
+  const [activityRange, setActivityRange] = useState<ActivityRange>('day')
+  const [customRange, setCustomRange] = useState({ from: activityDay, to: activityDay })
   const searchRef = useRef<HTMLInputElement>(null)
   const writeVersion = useRef(0)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
@@ -315,21 +322,39 @@ export default function App({ initialState, initialStartup }: { initialState: Qu
   const running = state.runningSince !== null
   const today = dayKey(new Date(now))
   const summary = dailySummary(state, new Date(now), now)
-  const daySummary = dailySummary(state, new Date(`${activityDay}T12:00:00`), now)
   const allTags = [...new Set(state.tasks.flatMap(task => task.tags))].sort()
   const visible = state.tasks.filter(task => task.status === view
     && `${task.title} ${task.tags.join(' ')}`.toLowerCase().includes(search.toLowerCase())
     && (!tag || task.tags.includes(tag))
     && (!due || (due === 'today' ? task.due === today : due === 'overdue' ? !!task.due && task.due < today : !task.due)))
   const counts = { queued: queued.length, completed: state.tasks.filter(task => task.status === 'completed').length, archived: state.tasks.filter(task => task.status === 'archived').length }
-  const week = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(`${activityDay}T12:00:00`)
-    date.setDate(date.getDate() - 6 + index)
-    return { date, ...dailySummary(state, date, now) }
-  })
-  const maxTime = Math.max(3600000, ...week.map(day => day.milliseconds))
+  const shownRange = activityRange === 'day' ? { from: activityDay, to: activityDay } : activityRange === 'custom' ? customRange : presetRange(activityRange, new Date(now))
+  const activity = rangeSummary(state, parseDayKey(shownRange.from), parseDayKey(shownRange.to), now)
+  const completedTime = activity.completed.reduce((total, task) => total + taskMilliseconds(state, task.id, now), 0)
+  const chart = activityRange === 'day'
+    ? { unit: 'day' as const, buckets: Array.from({ length: 7 }, (_, index) => { const date = parseDayKey(activityDay); date.setDate(date.getDate() - 6 + index); return { from: dayKey(date), to: dayKey(date) } }) }
+    : rangeBuckets(shownRange.from, shownRange.to)
+  const bars = chart.buckets.map(bucket => ({ ...bucket, milliseconds: rangeSummary(state, parseDayKey(bucket.from), parseDayKey(bucket.to), now).milliseconds }))
+  const maxTime = Math.max(3600000, ...bars.map(bar => bar.milliseconds))
+  const labelEvery = bars.length <= 7 ? 1 : Math.ceil(bars.length / 7)
 
   function changeView(next: View) { setView(next); setSearch(''); setTag(''); setDue('') }
+  function changeRange(next: ActivityRange) {
+    if (next === 'custom') setCustomRange(shownRange)
+    setActivityRange(next)
+  }
+  function changeCustom(edge: 'from' | 'to', value: string) {
+    if (!value || value > today) return
+    setCustomRange(edge === 'from' ? { from: value, to: value > customRange.to ? value : customRange.to } : { from: value < customRange.from ? value : customRange.from, to: value })
+  }
+  function selectBar(bucket: { from: string; to: string }) {
+    if (bucket.from === bucket.to) { setActivityRange('day'); setActivityDay(bucket.from) } else { setActivityRange('custom'); setCustomRange(bucket) }
+  }
+  function barLabel(bucket: { from: string }) {
+    if (chart.unit === 'month') return formatDay(bucket.from, { month: 'short' })
+    if (chart.unit === 'week') return formatDay(bucket.from, { month: 'short', day: 'numeric' })
+    return formatDay(bucket.from, bars.length <= 7 ? { weekday: 'short' } : { day: 'numeric' })
+  }
   function dragEnd(event: DragEndEvent) {
     if (event.over && event.active.id !== event.over.id) dispatch({ type: 'move', id: String(event.active.id), overId: String(event.over.id) })
   }
@@ -389,11 +414,19 @@ export default function App({ initialState, initialStartup }: { initialState: Qu
         <div className="list-heading"><span>{view === 'queued' ? 'YOUR QUEUE' : view === 'completed' ? 'COMPLETED TASKS' : 'ARCHIVED TASKS'}</span><span>{visible.length} {visible.length === 1 ? 'TASK' : 'TASKS'}</span></div>
         {visible.length ? <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={dragEnd}><SortableContext items={visible.map(task => task.id)} strategy={verticalListSortingStrategy}><ul className="task-list">{visible.map((task, index) => <TaskRow key={task.id} task={task} index={index} state={state} now={now} dispatch={dispatch} edit={() => setDialog({ kind: 'edit', task })} remove={() => setDialog({ kind: 'delete', task })} previous={visible[index - 1]?.id} next={visible[index + 1]?.id} />)}</ul></SortableContext></DndContext> : <div className="empty-state">{search || tag || due ? <Search /> : view === 'queued' ? <ListOrdered /> : view === 'completed' ? <CheckCheck /> : <Archive />}<h3>{search || tag || due ? 'No matching tasks.' : view === 'queued' ? 'Your queue is clear.' : view === 'completed' ? 'Nothing completed yet.' : 'Nothing archived yet.'}</h3>{search || tag || due ? <button className="secondary-button" onClick={() => { setSearch(''); setTag(''); setDue('') }}>Clear filters</button> : view === 'queued' && <button className="text-button" onClick={() => setDialog({ kind: 'edit' })}><Plus size={15} />Add a task</button>}</div>}
         {!!visible.length && view === 'queued' && <button className="add-row" onClick={() => setDialog({ kind: 'edit' })}><Plus size={16} />Add a task</button>}
-      </section> : <section className="activity-section" aria-label="Daily activity">
-        <div className="activity-header"><div><span className="eyebrow">DAILY ACTIVITY</span><h2>{activityDay === today ? 'Today, in focus.' : new Date(`${activityDay}T12:00:00`).toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}</h2></div><div className="date-controls"><IconButton label="Previous day" onClick={() => changeDay(-1)}><ChevronLeft /></IconButton><input aria-label="Activity date" type="date" max={today} value={activityDay} onChange={event => { if (event.target.value && event.target.value <= today) setActivityDay(event.target.value) }} /><IconButton label="Next day" disabled={activityDay >= today} onClick={() => changeDay(1)}><ChevronRight /></IconButton></div></div>
-        <div className="activity-stats"><div><span>Focus time</span><strong>{duration(daySummary.milliseconds)}</strong></div><div><span>Tasks completed</span><strong>{daySummary.completed.toString().padStart(2, '0')}</strong></div><div><span>Tasks focused</span><strong>{daySummary.byTask.length.toString().padStart(2, '0')}</strong></div></div>
-        <div className="week-chart" aria-label="Focus time over seven days">{week.map(day => <button className={dayKey(day.date) === activityDay ? 'selected' : ''} key={dayKey(day.date)} title={`${day.date.toLocaleDateString()}: ${duration(day.milliseconds)}`} onClick={() => setActivityDay(dayKey(day.date))}><span className="chart-value">{duration(day.milliseconds)}</span><span className="bar-track"><span style={{ height: `${Math.max(2, day.milliseconds / maxTime * 100)}%` }} /></span><span>{day.date.toLocaleDateString(undefined, { weekday: 'short' })}</span></button>)}</div>
-        <div className="list-heading"><span>FOCUS BREAKDOWN</span><span>TIME</span></div>{daySummary.byTask.length ? <ul className="breakdown-list">{daySummary.byTask.map(([id, entry]) => <li key={id}><span>{entry.title}</span><strong>{duration(entry.milliseconds)}</strong></li>)}</ul> : <div className="empty-state small"><Clock3 /><h3>No focus time recorded.</h3></div>}
+      </section> : <section className="activity-section" aria-label="Activity">
+        <div className="activity-header"><div>{activityRange === 'day' ? <><span className="eyebrow">DAILY ACTIVITY</span><h2>{activityDay === today ? 'Today, in focus.' : formatDay(activityDay, { month: 'long', day: 'numeric' })}</h2></> : <><span className="eyebrow">ACTIVITY</span><h2>{rangeTitles[activityRange]}</h2><span className="range-dates">{formatDay(shownRange.from)} – {formatDay(shownRange.to)}</span></>}</div>
+          <div className="activity-controls"><select aria-label="Activity range" value={activityRange} onChange={event => changeRange(event.target.value as ActivityRange)}><option value="day">Day</option><option value="week">Last 7 days</option><option value="month">This month</option><option value="last-month">Last month</option><option value="custom">Custom range</option></select>
+            {activityRange === 'day' && <div className="date-controls"><IconButton label="Previous day" onClick={() => changeDay(-1)}><ChevronLeft /></IconButton><input aria-label="Activity date" type="date" max={today} value={activityDay} onChange={event => { if (event.target.value && event.target.value <= today) setActivityDay(event.target.value) }} /><IconButton label="Next day" disabled={activityDay >= today} onClick={() => changeDay(1)}><ChevronRight /></IconButton></div>}
+            {activityRange === 'custom' && <div className="date-controls"><input aria-label="From date" type="date" max={today} value={customRange.from} onChange={event => changeCustom('from', event.target.value)} /><span className="range-separator">–</span><input aria-label="To date" type="date" max={today} value={customRange.to} onChange={event => changeCustom('to', event.target.value)} /></div>}
+          </div></div>
+        <div className="activity-stats"><div><span>Focus time</span><strong>{duration(activity.milliseconds)}</strong></div><div><span>Tasks completed</span><strong>{activity.completed.length.toString().padStart(2, '0')}</strong></div><div><span>Tasks focused</span><strong>{activity.byTask.length.toString().padStart(2, '0')}</strong></div></div>
+        <div className={`week-chart${bars.length > 7 ? ' dense' : ''}`} style={{ gridTemplateColumns: `repeat(${bars.length}, minmax(0, 1fr))` }} aria-label={`Focus time by ${chart.unit}`}>{bars.map((bar, index) => {
+          const label = `${bar.from === bar.to ? formatDay(bar.from) : `${formatDay(bar.from)} – ${formatDay(bar.to)}`}: ${duration(bar.milliseconds)}`
+          return <button className={activityRange === 'day' && bar.from === activityDay ? 'selected' : ''} key={bar.from} title={label} aria-label={label} onClick={() => selectBar(bar)}><span className="chart-value">{duration(bar.milliseconds)}</span><span className="bar-track"><span style={{ height: `${Math.max(2, bar.milliseconds / maxTime * 100)}%` }} /></span><span className="bar-label">{index % labelEvery === 0 ? barLabel(bar) : ''}</span></button>
+        })}</div>
+        <div className="list-heading"><span>COMPLETED</span><span>{activity.completed.length} {activity.completed.length === 1 ? 'TASK' : 'TASKS'} · {duration(completedTime)}</span></div>{activity.completed.length ? <ul className="completed-list">{activity.completed.map(task => <li key={task.id}><span className="completed-title">{task.title}{task.status === 'archived' && <span className="status-badge">Archived</span>}</span><span className="completed-when">{activityRange === 'day' ? new Date(task.completedAt ?? 0).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : new Date(task.completedAt ?? 0).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span><strong title="Total focus time">{duration(taskMilliseconds(state, task.id, now))}</strong></li>)}</ul> : <div className="empty-state small"><CheckCheck /><h3>No tasks completed in this period.</h3></div>}
+        <div className="list-heading spaced"><span>FOCUS BREAKDOWN</span><span>TIME</span></div>{activity.byTask.length ? <ul className="breakdown-list">{activity.byTask.map(([id, entry]) => <li key={id}><span>{entry.title}</span><strong>{duration(entry.milliseconds)}</strong></li>)}</ul> : <div className="empty-state small"><Clock3 /><h3>No focus time recorded.</h3></div>}
       </section>}
     </main>
     {notice && <div className="notice" role="alert"><span>{notice}</span><IconButton label="Dismiss message" onClick={() => setNotice('')}><X /></IconButton></div>}

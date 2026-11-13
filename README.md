@@ -6,9 +6,9 @@
 
 ![Priority Queue with a focused task, its timer, four queued tasks, tags, due dates, and daily totals](docs/images/queue.png)
 
-*Real Windows app screenshots with fictional tasks. This guide describes v1.2.0.*
+*Real Windows app screenshots with fictional tasks. This guide describes v1.2.1.*
 
-> **v1.2.0:** The Activity tab can now show tasks completed in the last 7 days, this month, last month, or a custom date range, with total focus time for each. System tray controls, encrypted local storage, permanent task/history deletion, and the offline Privacy notice are retained. The installer is self-signed by **Ravindra Akula** and timestamped. This is not a publicly trusted certificate: Windows may still warn about an unknown publisher. Read the release notes, especially the encryption migration warning, before upgrading from v0.2.0 or earlier.
+> **v1.2.1:** A security and maintenance update on the Tauri 2.12 desktop runtime, resolving reported advisories in bundled Rust dependencies. Features and saved data are unchanged from v1.2.0, whose Activity tab shows tasks completed in the last 7 days, this month, last month, or a custom date range. System tray controls, encrypted local storage, permanent task/history deletion, and the offline Privacy notice are retained. The installer is self-signed by **Ravindra Akula** and timestamped. This is not a publicly trusted certificate: Windows may still warn about an unknown publisher. Read the release notes, especially the encryption migration warning, before upgrading from v0.2.0 or earlier.
 
 ## Get started
 
